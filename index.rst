@@ -150,18 +150,18 @@ Rubin Observatory Science Quality and Reliability Engineering provides:
 - Kubernetes ingress
 - TLS certificates for public-facing web services
 - The authentication handler, encompassing
-  - OpenID Connect relying party that integrates with CILogon
-  - Web browser flow for login and logout
-  - Authentication and authorization subrequest handler
+   - OpenID Connect relying party that integrates with CILogon
+   - Web browser flow for login and logout
+   - Authentication and authorization subrequest handler
 - User metadata service, encompassing
-  - User metadata (full name, email, GitHub account)
-  - UID allocation
-  - API for internal services to retrieve metadata for a user
+   - User metadata (full name, email, GitHub account)
+   - UID allocation
+   - API for internal services to retrieve metadata for a user
 - Group service, encompassing
-  - Automatic group enrollment and removal based on affiliation
-  - Web interface of self-service group management
-  - GID allocation
-  - API for internal services to retrieve group membership for a user
+   - Automatic group enrollment and removal based on affiliation
+   - Web interface of self-service group management
+   - GID allocation
+   - API for internal services to retrieve group membership for a user
 
 .. _discuss:
 
