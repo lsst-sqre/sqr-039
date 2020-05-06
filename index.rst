@@ -11,7 +11,10 @@
 Abstract
 ========
 
-This note summarizes the authentication and authorization needs for the Rubin Science Platform, discusses trade-offs between possible implementation strategies, and proposes a design based on identity-only JWTs and a separate authorization and user metadata service.
+This technote summarizes the authentication and authorization needs for the Rubin Science Platform, discusses trade-offs between possible implementation strategies, and proposes a design based on identity-only JWTs and a separate authorization and user metadata service.
+
+This is neither a complete risk assessment nor a detailed technical specification.
+Those topics will be covered in subsequent documents.
 
 .. _problem:
 
@@ -27,6 +30,7 @@ The following authentication use cases must be supported:
 - Initial user authentication via federated authentication by their home institution, using a web browser.
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Rubin Science Platform.
+- Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
 - Authentication of API calls from the notebook aspect to other services within the Rubin Science Platform.
 - Authentication of some mechanism for users to copy files from their local system into the user home directories and shared file systems used by the notebook aspect.
 
@@ -46,10 +50,13 @@ Proposed design
 ===============
 
 This is a proposed design for authentication and authorization that meets the above requirements.
-All aspects of this design are discussed in more detail below, including alternatives and trade-offs.
+All aspects of this design are discussed in more detail in :ref:`discuss`, including alternatives and trade-offs.
 
 This is a high-level description of the design.
 Specific details (choices of encryption protocols, cookie formats, session storage schemas, and so forth) will be spelled out in subsequent documents.
+
+As a general design point affecting every design area, TLS is required for all traffic between the user and the Rubin Science Platform.
+Communications internal to the Rubin Science Platform need not use TLS provided that they happen only on a restricted private network specific to the Rubin Science Platform deployment.
 
 .. _initial-auth:
 
@@ -77,19 +84,17 @@ Each deployment of the Rubin Science Platform will use separate sessions and ses
 API authentication
 ------------------
 
-For internal authentication from the notebook aspect to other Rubin Science Platform services, the notebook will be issued a JWT based on the user's CILogon authentication.
-This JWT will contain only identity information, not group or scope information.
-See :ref:`groups` for more details on group management.
-
-For external authentication to APIs, users can create new access tokens associated with their account.
-They can be used as bearer tokens to access APIs.
+API calls are authenticated with opaque bearer tokens, by default via the HTTP Bearer authentication mechanism.
 To allow use of legacy software that only supports HTTP Basic authentication, they may also be used as the username field of an HTTP Basic ``Authorization`` header.
-These access tokens internally map to a JWT similar to the JWT used by the notebook aspect, and will be replaced with the underlying JWT by the authentication handler so that services see the JWT form.
 
-These access tokens are not accepted as an authentication mechanism to web interfaces such as the notebook or portal aspect, or other internal pages such as the page to manage identity provider associations or group membership.
+Interally, these opaque bearer tokens will be replaced with a :abbr:`JSON Web Token (JWT)`.
+Internal services will therefore expect and consume JWTs, and internal service-to-service calls will use JWTs for authentication.
+These JWTs will contain only identity information, not group or scope information.
+See :ref:`groups` for more details on group management.
+The opaque bearer token will be replaced with a JWT by the authentication handler that sits in front of each protected service.
 
-Users can list their access tokens, create new ones, or delete them.
-These access tokens do not expire.
+Users can list their bearer tokens, create new ones, or delete them.
+User-created bearer tokens do not expire.
 Administrators can invalidate them if necessary (such as for security reasons).
 
 .. _groups:
@@ -124,6 +129,81 @@ The exact mechanism for doing this is still to be determined, but will likely in
 User authentication for remote file system operations will be via the same access token as remote API calls.
 See :ref:`api-auth`.
 
+.. _discuss:
+
+Design discussion
+=================
+
+.. _discuss-api-auth:
+
+API authentication
+------------------
+
+There are four widely-deployed choices for API authentication:
+
+#. HTTP Basic with username and password
+#. Opaque bearer tokens
+#. JWTs
+#. Client TLS certificates
+
+The first two are roughly equivalent except that HTTP Basic imposes more length restrictions on the authenticator, triggers browser prompting behavior, and has been replaced by bearer token authentication in general best practices for web services.
+Client TLS certificates provide the best security since they are not vulnerable to man-in-the-middle attacks, but are awkward to manage on the client side and cannot be easily cut-and-pasted.
+TLS certificates also cannot be used in HTTP Basic fallback situations with software that only supports that authentication mechanism.
+
+Opaque bearer tokens and JWTs are therefore the most appealing.
+However, we expect to have to support HTTP Basic as a fallback for some legacy software that only understands that authentication mechanism.
+
+JWTs are standardized and widely supported by both third-party software and by libraries and other tools, and do not inherently require a backing data store.
+However, JWTs are necessarily long.
+An absolutely minimal JWT (only a ``sub`` claim with a single-character identity) using the ``ES256`` algorithm to minimize the signature size is 181 octets.
+With a reasonable set of claims for best-practice usage (``aud``, ``iss``, ``iat``, ``exp``, ``sub``, ``jti``, and ``scope``), again using the ``ES256`` algorithm, the JWT is around 450 octets.
+
+Length matters because HTTP requests have to pass through various clients, libraries, gateways, and web servers, many of which impose limits on HTTP header length, either in aggregate or for individual headers.
+Multiple services often share the same cookie namespace and compete for those limited resources.
+The constraints become more severe when supporting HTTP Basic.
+The username and password fields of the HTTP Basic ``Authorization`` header are often limited to 256 octets, and some software imposes limits as small as 64 octets under the assumption that these fields only need to hold traditional, short usernames and passwords.
+Even minimal JWTs are therefore dangerously long, and best-practice JWTs are too long to use with HTTP Basic authentication.
+
+Opaque bearer tokens avoid this problem.
+An opaque token need only be long enough to defeat brute force searches, for which 128 bits of randomness are sufficient.
+For various implementation reasons it is often desirable to have a random token ID and a separate random secret, and to add a standard prefix to all opaque tokens, but even with this taken into account, a token with a four-octet identifying prefix and two 128-bit random segments, encoded in URL-safe base64 encoding, is only 49 octets.
+
+The HTTP Basic requirement only applies to the request from the user to the authentication gateway for the Rubin Science Platform.
+The length constraints similarly matter primarily for the HTTP Basic requirement and for authentication from web browsers, which may have a multitude of cookies and other necessary headers.
+Within the Rubin Science Platform, JWTs are appealing because they are more transparent and do not require querying stored state to interpret.
+
+This technote therefore proposes a hybrid model.
+Authentication from the user's system (and, as discussed in :ref:`discuss-browser-auth`, web browsers) should use opaque bearer tokens.
+Those opaque tokens should be converted to JWTs by a service that sits in front of each service that requires authentication.
+API services should receive JWTs, and use JWTs for internal service-to-service authentication.
+
+There are two options for the notebook aspect: use opaque bearer tokens so that identical authenticators are used in the notebook and on the user's local system, or use JWTs since the notebook aspect doesn't have the problems that require shorter tokens.
+Using JWTs has the benefit of not requiring state or the bottleneck of a session database when authenticating API calls from the notebook aspect, which are expected to be the bulk of API traffic handled by the Rubin Science Platform.
+However, the inconsistency between the tokens used by code running in the notebook and code running on the user's system has the potential to create confusing differences in behavior, and introduces additional complexity.
+Scaling problems are generally easier to solve than user confusion problems; this technote therefore recommends using opaque bearer tokens and the same authentication gateway and mapping layer for both direct user calls and notebook aspect calls.
+
+This also prompts the question: Why use JWTs at all?
+Why not use opaque bearer tokens for all internal communication, and issue them as needed to internal components for service-to-service calls?
+
+There are three reasons to retain JWTs as the representation of authentication to the service itself:
+
+#. Some third-party services may consume JWTs directly and expect to be able to validate them.
+#. If a user API call sets off a cascade of numerous internal API calls, avoiding the need to consult a data store to validate opaque tokens could improve performance.
+   JWTs can be verified directly without needing any state other than the (relatively unchanging) public signing key.
+#. JWTs are apparently becoming the standard protocol for API web authentication.
+   Preserving a JWT component to the Rubin Science Platform will allow us to interoperate with future services, possibly outside the Rubin Science Platform, that require JWT-based authentication.
+   It also preserves the option to drop opaque bearer tokens entirely if the header length and HTTP Basic requirements are relaxed in the future (by, for example, no longer supporting older software with those limitations).
+
+These justifications are fairly weak.
+Dropping JWTs from the design entirely and using only opaque bearer tokens interpreted by a single component with a private backing store of session information is worth consideration.
+
+.. _discuss-browser-auth:
+
+Web browser authentication
+--------------------------
+
+.. _open-questions:
+
 Open questions
 ==============
 
@@ -133,3 +213,11 @@ Open questions
    Suppose, for instance, a user has access via the University of Washington, and has also configured GitHub as an authentication provider because that's more convenient for them.
    Now suppose the user's affiliation with the University of Washington ends.
    If the user continues to authenticate via GitHub, how do we know to update their access control information based on that change of affiliation?
+
+.. _references:
+
+References
+==========
+
+- `JSON Web Token (JWT) <https://tools.ietf.org/html/rfc7519`
+- `OAuth 2.0: Bearer Token Usage <https://tools.ietf.org/html/rfc6750>`
