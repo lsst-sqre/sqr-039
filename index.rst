@@ -87,11 +87,9 @@ API authentication
 API calls are authenticated with opaque bearer tokens, by default via the HTTP Bearer authentication mechanism.
 To allow use of legacy software that only supports HTTP Basic authentication, they may also be used as the username field of an HTTP Basic ``Authorization`` header.
 
-Interally, these opaque bearer tokens will be replaced with a :abbr:`JSON Web Token (JWT)`.
-Internal services will therefore expect and consume JWTs, and internal service-to-service calls will use JWTs for authentication.
-These JWTs will contain only identity information, not group or scope information.
+All services protected by authentication will use an authentication handler that verifies authorization and then provides any relevant details of the authentication to the service in extra HTTP headers.
+Group membership will be determined dynamically on each request (although possibly cached for a short period of time).
 See :ref:`groups` for more details on group management.
-The opaque bearer token will be replaced with a JWT by the authentication handler that sits in front of each protected service.
 
 Users can list their bearer tokens, create new ones, or delete them.
 User-created bearer tokens do not expire.
@@ -120,19 +118,74 @@ File storage
 Users of the notebook aspect will have a personal home directory and access to shared file space.
 Users may create collaboration directories in the shared file space and limit access to groups, either platform-maintained groups or user-managed groups.
 These file systems will be exposed inside the notebook aspect as POSIX directory structures using POSIX groups for access control.
+The backend storage will be NFS.
 
-To support this, the notebook aspect will, on notebook launch, retrieve the user's UID and their group memberships from a metadata service and use that information to set file system permissions appropriately.
-If the file system backing store uses GIDs for access control (NFS, for example), those will be retrieved with the group membership from the metadata service.
+To support this, the notebook aspect will, on notebook launch, retrieve the user's UID and their group memberships, including GIDs, from a metadata service and use that information to set file system permissions and POSIX credentials inside the notebook container appropriately.
 
 Users will also want to easily copy files from their local system into file storage accessible by the notebook aspect, ideally via some implicit sync or shared file system that does not require an explicit copy command.
-The exact mechanism for doing this is still to be determined, but will likely involve a server on the Rubin Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership.
+The exact mechanism for doing this is still to be determined, but will likely involve a server on the Rubin Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership by assuming the user's UID and GIDs.
 User authentication for remote file system operations will be via the same access token as remote API calls.
 See :ref:`api-auth`.
+
+.. _responsibilities:
+
+Division of responsibilities
+----------------------------
+
+CILogon provides:
+
+- Federated authentication exposed via OpenID Connect
+
+The Rubin Data Facility provides:
+
+- The Kubernetes platform on which the Rubin Science Platform runs
+- Load balancing and IP allocation for web and API endpoints
+- PostgreSQL database for user and group data storage
+- Object storage, with backups
+- Persistant backing storage for authentication and authorization data stores, with backups
+- NFS for file system storage, with backups
+
+Rubin Observatory Science Quality and Reliability Engineering provides:
+
+- Kubernetes ingress
+- TLS certificates for public-facing web services
+- The authentication handler, encompassing
+  - OpenID Connect relying party that integrates with CILogon
+  - Web browser flow for login and logout
+  - Authentication and authorization subrequest handler
+- User metadata service, encompassing
+  - User metadata (full name, email, GitHub account)
+  - UID allocation
+  - API for internal services to retrieve metadata for a user
+- Group service, encompassing
+  - Automatic group enrollment and removal based on affiliation
+  - Web interface of self-service group management
+  - GID allocation
+  - API for internal services to retrieve group membership for a user
 
 .. _discuss:
 
 Design discussion
 =================
+
+.. _discuss-initial-auth:
+
+Initial authentication
+----------------------
+
+The Rubin Science Platform must support federated user authentication via SAML and ideally should support other common authentication methods such as OAuth 2.0 (GitHub) and OpenID Connect (Google).
+Running a SAML Discovery Service and integrating with the various authentication federations is complex and requires significant ongoing work.
+CILogon already provides excellent integration with the necessary authentication federations, GitHub, and Google, and exposes the results via OpenID Connect.
+
+The identity returned by CILogon will depend on the user's choice of authentication provider.
+To support the same user authenticating via multiple providers, the authentication service will need to maintain a list of IdP and identity pairs that map to the same local identity.
+Users would be able to maintain this information using an approach like the following:
+
+- On first authentication to the Rubin Science Platform, the user would choose a local username.
+  This username would be associated with the ``sub`` claim returned by CILogon.
+- If the user wished to add a new authentication mechanism, they would first go to an authenticated page at the Rubin Science Platform using their existing authentication method.
+  Then, they would select from the available identity providers supported by CILogon.
+  The Rubin Science Platform would then redirect them to CILogon with the desired provider selected, and upon return with successful authentication, link the new ``sub`` claim with their existing account.
 
 .. _discuss-api-auth:
 
@@ -143,20 +196,20 @@ There are four widely-deployed choices for API authentication:
 
 #. HTTP Basic with username and password
 #. Opaque bearer tokens
-#. JWTs
+#. :abbr:`JWTs (JSON Web Tokens)`
 #. Client TLS certificates
 
 The first two are roughly equivalent except that HTTP Basic imposes more length restrictions on the authenticator, triggers browser prompting behavior, and has been replaced by bearer token authentication in general best practices for web services.
-Client TLS certificates provide the best security since they are not vulnerable to man-in-the-middle attacks, but are awkward to manage on the client side and cannot be easily cut-and-pasted.
-TLS certificates also cannot be used in HTTP Basic fallback situations with software that only supports that authentication mechanism.
+Client TLS certificates provide the best security since they are not vulnerable to man-in-the-middle attacks, but are more awkward to manage on the client side and cannot be easily cut-and-pasted.
+Client TLS certificates also cannot be used in HTTP Basic fallback situations with software that only supports that authentication mechanism.
 
 Opaque bearer tokens and JWTs are therefore the most appealing.
-However, we expect to have to support HTTP Basic as a fallback for some legacy software that only understands that authentication mechanism.
+The same token can then be used via HTTP Basic as a fallback for some legacy software that only understands that authentication mechanism.
 
-JWTs are standardized and widely supported by both third-party software and by libraries and other tools, and do not inherently require a backing data store.
+JWTs are standardized and widely supported by both third-party software and by libraries and other tools, and do not inherently require a backing data store since they contain their own verification information.
 However, JWTs are necessarily long.
 An absolutely minimal JWT (only a ``sub`` claim with a single-character identity) using the ``ES256`` algorithm to minimize the signature size is 181 octets.
-With a reasonable set of claims for best-practice usage (``aud``, ``iss``, ``iat``, ``exp``, ``sub``, ``jti``, and ``scope``), again using the ``ES256`` algorithm, the JWT is around 450 octets.
+With a reasonable set of claims for best-practice usage (``aud``, ``iss``, ``iat``, ``exp``, ``sub``, ``jti``, and ``scope``), again using the ``ES256`` algorithm, a JWT containing only identity and scope information and no additional metadata is around 450 octets.
 
 Length matters because HTTP requests have to pass through various clients, libraries, gateways, and web servers, many of which impose limits on HTTP header length, either in aggregate or for individual headers.
 Multiple services often share the same cookie namespace and compete for those limited resources.
@@ -166,26 +219,15 @@ Even minimal JWTs are therefore dangerously long, and best-practice JWTs are too
 
 Opaque bearer tokens avoid this problem.
 An opaque token need only be long enough to defeat brute force searches, for which 128 bits of randomness are sufficient.
-For various implementation reasons it is often desirable to have a random token ID and a separate random secret, and to add a standard prefix to all opaque tokens, but even with this taken into account, a token with a four-octet identifying prefix and two 128-bit random segments, encoded in URL-safe base64 encoding, is only 49 octets.
+For various implementation reasons it is often desirable to have a random token ID and a separate random secret and to add a standard prefix to all opaque tokens, but even with this taken into account, a token with a four-octet identifying prefix and two 128-bit random segments, encoded in URL-safe base64 encoding, is only 49 octets.
 
 The HTTP Basic requirement only applies to the request from the user to the authentication gateway for the Rubin Science Platform.
 The length constraints similarly matter primarily for the HTTP Basic requirement and for authentication from web browsers, which may have a multitude of cookies and other necessary headers.
-Within the Rubin Science Platform, JWTs are appealing because they are more transparent and do not require querying stored state to interpret.
+It would therefore be possible to use JWTs inside the Rubin Science Platform and only use opaque tokens outside.
+However, this adds complexity by creating multiple token systems.
+A single token mechanism based on opaque bearer tokens that map to a corresponding session stored in a persistent data store achieves the authentication goals with a minimum of complexity.
 
-This technote therefore proposes a hybrid model.
-Authentication from the user's system (and, as discussed in :ref:`discuss-browser-auth`, web browsers) should use opaque bearer tokens.
-Those opaque tokens should be converted to JWTs by a service that sits in front of each service that requires authentication.
-API services should receive JWTs, and use JWTs for internal service-to-service authentication.
-
-There are two options for the notebook aspect: use opaque bearer tokens so that identical authenticators are used in the notebook and on the user's local system, or use JWTs since the notebook aspect doesn't have the problems that require shorter tokens.
-Using JWTs has the benefit of not requiring state or the bottleneck of a session database when authenticating API calls from the notebook aspect, which are expected to be the bulk of API traffic handled by the Rubin Science Platform.
-However, the inconsistency between the tokens used by code running in the notebook and code running on the user's system has the potential to create confusing differences in behavior, and introduces additional complexity.
-Scaling problems are generally easier to solve than user confusion problems; this technote therefore recommends using opaque bearer tokens and the same authentication gateway and mapping layer for both direct user calls and notebook aspect calls.
-
-This also prompts the question: Why use JWTs at all?
-Why not use opaque bearer tokens for all internal communication, and issue them as needed to internal components for service-to-service calls?
-
-There are three reasons to retain JWTs as the representation of authentication to the service itself:
+This choice forgoes the following advantages of using JWTs internally:
 
 #. Some third-party services may consume JWTs directly and expect to be able to validate them.
 #. If a user API call sets off a cascade of numerous internal API calls, avoiding the need to consult a data store to validate opaque tokens could improve performance.
@@ -194,13 +236,115 @@ There are three reasons to retain JWTs as the representation of authentication t
    Preserving a JWT component to the Rubin Science Platform will allow us to interoperate with future services, possibly outside the Rubin Science Platform, that require JWT-based authentication.
    It also preserves the option to drop opaque bearer tokens entirely if the header length and HTTP Basic requirements are relaxed in the future (by, for example, no longer supporting older software with those limitations).
 
-These justifications are fairly weak.
-Dropping JWTs from the design entirely and using only opaque bearer tokens interpreted by a single component with a private backing store of session information is worth consideration.
+If the first point (direct use of JWTs by third-party services) becomes compelling, the authentication handler could create and inject a JWT into the HTTP request to those services without otherwise changing the model.
 
 .. _discuss-browser-auth:
 
 Web browser authentication
 --------------------------
+
+Web browser authentication is somewhat simpler.
+An unauthenticated web browser will be redirected for initial authentication following the OpenID Connect protocol.
+Upon return from the OpenID Connect provider (CILogon), the user's identity is mapped to a local identity for the Rubin Science Platform and a new session and corresponding opaque bearer token created for that identity.
+
+Rather than returning that bearer token to the user as in the API example, the bearer token will instead be stored in a cookie.
+Unlike with API tokens, these tokens should have an expiration set, and the user redirected to reauthenticate when the token expires.
+
+Use of cookies prompts another choice: Should the token be stored in a session cookie or in a cookie with an expiration set to match the token?
+Session cookies are slightly more secure because they are not persisted to disk on the client and are deleted when the user closes their browser.
+They have the drawback of therefore sometimes requiring more frequent reauthentication.
+The authentication system will also need to store other information that should be transient and thus in a session cookie, such as CSRF tokens, and it's convenient to use the same cookie storage protocol for the token.
+
+The initial proposal is to store the token in a session cookie alongside other session information, encrypted in a key specific to that installation of the Rubin Science Platform.
+If this requires users to reauthenticate too frequently, this decision can be easily revisited.
+
+.. _discuss-groups:
+
+Group membership
+----------------
+
+There are two approaches to handling authorization when using JWTs: Embed authorization information such as group membership into the JWT, or have the JWT provide only identity and look up group membership in a separate authorization service as needed.
+
+Whether to include authorization information in authentication credentials is a never-ending argument in security.
+There are advantages and disadvantages either way.
+Advantages to including authorization information in the credentials:
+
+- Authorization decisions can be made without requests to an additional service, which can reduce latency and loosen the coupling between the authorization service and the services consuming its information.
+  (For example, they can be run in separate clusters or even at separate sites.)
+- A credential is self-describing and doesn't require queries to another service.
+  A credential is also frozen; its properties do not change over its lifetime.
+- It's easy to create credentials that carry the identity of a user but do not have all of that user's permissions.
+
+Advantages to keeping authorization information out of credentials:
+
+- Authorization information can change independently from the credentials.
+  This is particularly important for long-lived credentials that act on behalf of a user who may be dynamically added to or removed from groups.
+  They can continue to use the same API tokens, for example, and don't have to replace them all with new ones with a refreshed group list.
+- Authorization can be revoked without revoking the credentials.
+  When the authorization information is embedded in the credential, and that credential is stolen, there is no easy way to keep it from continuing to work without some form of revocation protocol.
+  Some credentials have no standard revocation protocol (JWTs, for instance), and even when such a protocol exists, it's often poorly-implemented or unwieldy.
+- Authorization decisions can use data that is too complex to easily serialize into the authentication credentials.
+- Tokens are smaller (although still not small enough to use with HTTP Basic authentication).
+
+For the Rubin Science Platform, it is important to be able to change authorization information (particularly group information) without asking people to log out, log in again, and replace their tokens.
+There will likely be significant use of ad hoc groups and interactive correction of group membership and want to make that as smooth as possible.
+The requirements also call for non-expiring API tokens, and requiring them to be reissued when group membership changes would be disruptive.
+
+This design therefore uses authentication-only credentials.
+For external APIs and for web browsers, the credential is an opaque token that maps to an underlying session, which can be independently invalidated if needed for security reasons.
+Group information will be dynamically queried on request.
+Authorization and group information will likely to be cached for scaling reasons, so changes will not be immediate.
+Cache lifetime and thus delay before an authorization update takes effect is a trade-off that will be set dynamically based on experience, but something on the order of ten minutes seems likely.
+
+This approach will result in more traffic to the authentication and authorization services.
+Given the expected volume of HTTP requests to the Rubin Science Platform, the required level of scaling should be easy to meet with a combination of caching and horizontal scaling of those services.
+
+Group membership and GIDs for file system access from the notebook aspect will likely need to be set on launch of the notebook container, so as a special exception to the ability to dynamically update groups, notebook aspect containers will probably need to be relaunched to pick up group changes for file system access.
+
+.. _discuss-file-storage:
+
+File storage
+------------
+
+None of the options for POSIX file storage are very appealing.
+It would be tempting to make do with only an object store, but the UI for astronomers would be poor and it wouldn't support the expected environment for the notebook aspect.
+Simulating a POSIX file system on top of an object store is technically possible, but those types of translation layers tend to be rife with edge-case bugs.
+The simplest solution is therefore to use a native POSIX file system.
+
+Of the available options, NFS is the most common and the best understood.
+Any anticipated Rubin Data Facility is likely to be able to provide NFS in some way.
+
+Unfortunately, the standard NFS authorization mechanism is UIDs and GIDs asserted by trusted clients.
+The NFS protocol supports Kerberos, but this would add a great deal of complexity to the notebook aspect and other services that need to use the file system, and server implementations are not widely available and are challenging to run.
+For example, Google Filestore (useful for prototyping and test installations) supports NFSv3, but not Kerberos.
+
+Other possible file systems (such as cluster file systems like GPFS or Lustre) are generally not available as standard services in cloud environments, which are used for prototyping and testing and which ideally should match the Data Facility environment.
+
+AFS and related technologies such as AuriStor deserve some separate discussion.
+AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect and internal Rubin Science Platform services.
+This neatly solves the problem of synchronizing files from a user's machine to their running notebook or their collaborators, which would be a significant benefit.
+Unfortunately, there are several obstacles:
+
+- The user would need to run a client (including a kernel module).
+  Those clients can lag behind operating system releases and require support to install and debug (which Rubin Observatory is not in a position to provide).
+- AFS-based file systems are similarly not available as standard services in cloud environments.
+- Running an AFS file system is a non-trivial commitment of ongoing support resources and may not be readily within the capabilities of the Rubin Data Facility.
+- AFS-based file systems generally assume Kerberos-based authentication mechanisms, which would require adding the complexity of Kerberos authentication to the notebook aspect and possibly to user systems.
+  (It may be possible to avoid this via AuriStor, which supports a much wider range of authentication options.)
+
+While having native file system support on the user's system would be extremely powerful, and AuriStor has some interesting capabilities such as using Ceph as its backing store, supporting a custom file system client on the user's system is probably not viable.
+
+None of the other options seem sufficiently compelling over the availability and well-understood features of NFSv3.
+
+This leaves the question of how to provide file system access from a user's local device.
+Since the user population is expected to be widely distributed and Rubin Observatory will have limited ability to provide local support, there is a strong bias towards using some mechanism that is natively supported by the user's operating system.
+Unfortunately, this limits the available solutions to nearly the empty set.
+WebDAV has native integration with macOS and integration with the Finder, and uses HTTP Basic, which can support bearer tokens using the mechanism described in :ref:`api-auth`.
+It is therefore the most likely option at the moment.
+
+SSH could also be used, either via scp/sftp or through (at the user's choice) something more advanced such as `SSHFS <https://github.com/libfuse/sshfs>`__, which allows a remote file system to appear to be a local file system.
+It is harder to support in this authentication model and is not part of the initial proposal.
+However, it could be supported by, most likely, adding a way for a user to register an SSH key to tie it to their account, and then providing an SSH server that allows sftp access to the user's file system spaces.
 
 .. _open-questions:
 
@@ -219,5 +363,5 @@ Open questions
 References
 ==========
 
-- `JSON Web Token (JWT) <https://tools.ietf.org/html/rfc7519`
-- `OAuth 2.0: Bearer Token Usage <https://tools.ietf.org/html/rfc6750>`
+- `JSON Web Token (JWT) <https://tools.ietf.org/html/rfc7519>`__
+- `OAuth 2.0: Bearer Token Usage <https://tools.ietf.org/html/rfc6750>`__
