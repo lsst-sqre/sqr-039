@@ -71,6 +71,11 @@ Proposed design
 This is a proposed design for authentication and authorization that meets the above requirements.
 All aspects of this design are discussed in more detail in :ref:`discuss`, including alternatives and trade-offs.
 
+.. figure:: /_static/architecture.png
+   :name: Science Platform architecture
+
+   Science Platform architecture
+
 This is a high-level description of the design to inform discussion.
 Specific details (choices of encryption protocols, cookie formats, session storage schemas, and so forth) will be spelled out in subsequent documents if this proposal is adopted.
 
