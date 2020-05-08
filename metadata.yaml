@@ -39,14 +39,19 @@ copyright: "2020, Association of Universities for Research in Astronomy, Inc. (A
 # Description. A short, 1-2 sentence statemement used by document indices.
 description: >-
   Summarizes authentication and authorization needs and implementation
-  trade-offs for the Rubin Science Platform.  Proposes a design.
+  trade-offs for the Rubin Science Platform.  Proposes a modified design.
 
 # Abstract, if available
 abstract: >-
-  This note summarizes the authentication and authorization needs for the
-  Rubin Science Platform, discusses trade-offs between possible
-  implementation strategies, and proposes a design based on identity-only
-  JWTs and a separate authorization and user metadata service.
+  This technote reassesses the authentication and authorization needs for
+  the Rubin Science Platform in light of early operational experience and
+  Data Facility developments, discusses trade-offs between possible
+  implementation strategies, and proposes a modified design based on
+  opaque bearer tokens and a separate authorization and user metadata
+  service.
+
+  This is neither a complete risk assessment nor a detailed technical
+  specification.  Those topics will be covered in subsequent documents.
 
 # URL where this document is published by Read the Docs. e.g. http://sqr-001.lsst.codes
 url: "https://sqr-039.lsst.io"

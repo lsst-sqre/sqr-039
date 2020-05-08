@@ -11,7 +11,7 @@
 Abstract
 ========
 
-This technote re-assesses the authentication and authorization needs for the Rubin Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on identity-only JWTs and a separate authorization and user metadata service.
+This technote reassesses the authentication and authorization needs for the Rubin Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on opaque bearer tokens and a separate authorization and user metadata service.
 
 This is neither a complete risk assessment nor a detailed technical specification.
 Those topics will be covered in subsequent documents.
@@ -21,13 +21,18 @@ Those topics will be covered in subsequent documents.
 Motivation
 ==========
 
-At the time of writing (mid-2020), we are operating a functional (but not feature-complete) Science Platform service in the Data Facility at NCSA for internal project use and in support of early community engagement activities (eg. Stack Club) which includes a functional Authentication and Authorisation (A&A) service designed by the Data Management Architecture team to layer on top of services, security models, system capabilities and infrastructure constraints provided by NCSA. 
-We are motivated to re-visit some aspects of the design and implementation of our A&A strategy in the light of the following developments:
+At the time of writing (mid-2020), we are operating a functional but not feature-complete Science Platform service in the Data Facility at NCSA for internal project use and in support of early community engagement activities (Stack Club, for example).
+This service includes a functional Authentication and Authorization (A&A) service designed by the Data Management Architecture team.
+This service operates as a layer on top of services, security models, system capabilities, and infrastructure constraints provided by NCSA.
+We are motivated to revisit some aspects of the design and implementation of our A&A strategy in the light of the following developments:
 
-- Early operational experience has highlighted some engineering and usability pain points with the current approach that are ripe for optimization (eg issues arising from the length of our JWT tokens);
-- Some existing decisions were driven by pragmatic requirements to integrate with existing NCSA services (eg. the University of Illinois LDAP service) and other infrastructure constraints (eg for Science Platform accounts to also be NCSA accounts in order to intergrate with Storage services), whereas we are now more driven by the need for the Science Platform deployment to be well separated from the specifics of the underlying infrastructure in order to support a smooth transition to a different Data Facility provider (possibly via an interim Data Facility for Early Operations);
-- We have had an emerging requirement to provide additional (albeit partial) Science Platform production deployments, (eg. at the Summit facility) that need to integrate with different infrastructure and have additional connectivity constraints (such as being able to use the system during an interruption of the external network, or to provide authentication for the Engineering Facilities Database APIs); 
-- The addition of a Security Architect to the SQuaRE Team and its Ops-Era counterpart have afforded us the opportunity to consider some options that previously would have been ruled out by lack of suitable engineering effort to design and implement them. 
+- Early operational experience has highlighted some engineering and usability pain points with the current approach that are ripe for optimization, such as the complexity of juggling multiple types of tokens.
+- Some existing decisions were driven by pragmatic requirements to integrate with existing NCSA services, such as the University of Illinois LDAP service, and other infrastructure constraints.
+  For example, currently Science Platform accounts must also be NCSA accounts in order to intergrate with NCSA-provided storage services.
+  We are now more driven by the need for the Science Platform deployment to be well-separated from the specifics of the underlying infrastructure in order to support a smooth transition to a different Data Facility provider, possibly via an interim Data Facility for Early Operations.
+- We have had an emerging requirement to provide additional (albeit partial) Science Platform production deployments, such as at the Summit facility.
+  Those deployments will need to integrate with different infrastructure and will have additional connectivity constraints, such as supporting authentication and authorization during an interruption of the external network and providing authentication for the Engineering Facilities Database APIs.
+- The addition of a Security Architect to the SQuaRE Team and its Ops-Era counterpart have afforded us the opportunity to consider some options that previously would have been ruled out by lack of suitable engineering effort to design and implement them.
 
 .. _problem:
 
@@ -41,6 +46,7 @@ Primary user authentication will be federated and thus delegated to the user's m
 The following authentication use cases must be supported:
 
 - Initial user authentication via federated authentication by their home institution, using a web browser.
+- Initial user authentication via a local OpenID Connect service for the Summit Facility deployment.
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Rubin Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
@@ -76,7 +82,7 @@ Communications internal to the Rubin Science Platform need not use TLS provided 
 Initial user authentication
 ---------------------------
 
-Initial user authentication will be done via CILogon using a web browser.
+Initial user authentication for most deployments will be done via CILogon using a web browser.
 CILogon will be used as an OpenID Connect provider, so the output from that authentication process will be a JWT issued by CILogon and containing the user's identity information.
 
 The CILogon-provided identity will be mapped to a Rubin Science Platform user.
@@ -91,6 +97,8 @@ Other attributes may be initially seeded from CILogon information, but the user 
 After CILogon authentication, the Rubin Science Platform will create a session for that user in Redis and set a cookie pointing to that session.
 The cookie and session will be used for further web authentication from that browser.
 Each deployment of the Rubin Science Platform will use separate sessions and session keys, and thus require separate web browser authentication.
+
+For the Summit deployment, a local OpenID Connect provider will be used instead of CILogon, but the remainder of the initial authentication flow will be the same.
 
 .. _api-auth:
 
@@ -153,10 +161,11 @@ The Rubin Data Facility (including additional and/or interim Data Facilities) pr
 
 - The Kubernetes platform on which the Rubin Science Platform runs
 - Load balancing and IP allocation for web and API endpoints
-- PostgreSQL database for user and group data storage
-- Object storage, with backups
-- Persistant backing storage for authentication and authorization data stores, with backups
-- NFS for file system storage, with backups
+- PostgreSQL database for internal storage of authentication and authorization data
+- Object storage
+- Persistant backing storage for supplemental authentication and authorization data stores (such as Redis)
+- NFS for file system storage
+- Backup and restore facilities for all persistent data storage
 
 Rubin Observatory Science Quality and Reliability Engineering and its Ops-Era Successor provides:
 
@@ -250,6 +259,9 @@ This choice forgoes the following advantages of using JWTs internally:
    It also preserves the option to drop opaque bearer tokens entirely if the header length and HTTP Basic requirements are relaxed in the future (by, for example, no longer supporting older software with those limitations).
 
 If the first point (direct use of JWTs by third-party services) becomes compelling, the authentication handler could create and inject a JWT into the HTTP request to those services without otherwise changing the model.
+
+The primary driver for using opaque tokens rather than JWTs is length, which in turn is driven by the requirement to support HTTP Basic authentication.
+If all uses of HTTP Basic authentication can be shifted to token authentication and that requirement dropped, the decision to use opaque tokens rather than JWTs should be revisited.
 
 .. _discuss-browser-auth:
 
