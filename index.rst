@@ -107,7 +107,7 @@ API authentication
 ------------------
 
 API calls are authenticated with opaque bearer tokens, by default via the HTTP Bearer authentication mechanism.
-To allow use of legacy software that only supports HTTP Basic authentication, they may also be used as the username field of an HTTP Basic ``Authorization`` header.
+To allow use of legacy software that only supports HTTP Basic authentication, they may also be used as the username or password field of an HTTP Basic ``Authorization`` header.
 
 All services protected by authentication will use an authentication handler that verifies authorization and then provides any relevant details of the authentication to the service in extra HTTP headers.
 Group membership will be determined dynamically on each request (although possibly cached for a short period of time).
@@ -128,8 +128,8 @@ Other groups will be self-service.
 Users can create groups and add other users to those groups as they wish.
 All groups will be assigned a unique GID for use within shared storage, assuming we use a storage backend that uses GIDs.
 
-Group membership will not be encoded in JWTs or in the user's web session.
-Instead, all Rubin Science Platform services will have access to a web service that, given a user's identity, will return the group membership for that user.
+Group membership will not be encoded in the token or the user's web session.
+Instead, all Rubin Science Platform services will have access to a web service that, given a user's identity or a scoped token, will return authorization information and group membership for that user or token.
 For services that only need simple authorization checks, this can optionally be done by the authentication handler that sits in front of the service.
 
 .. _file-storage:
@@ -248,6 +248,7 @@ The HTTP Basic requirement only applies to the request from the user to the auth
 The length constraints similarly matter primarily for the HTTP Basic requirement and for authentication from web browsers, which may have a multitude of cookies and other necessary headers.
 It would therefore be possible to use JWTs inside the Rubin Science Platform and only use opaque tokens outside.
 However, this adds complexity by creating multiple token systems.
+It would also be harder to revoke specific JWTs should that be necessary for security reasons.
 A single token mechanism based on opaque bearer tokens that map to a corresponding session stored in a persistent data store achieves the authentication goals with a minimum of complexity.
 
 This choice forgoes the following advantages of using JWTs internally:
@@ -262,7 +263,7 @@ This choice forgoes the following advantages of using JWTs internally:
 If the first point (direct use of JWTs by third-party services) becomes compelling, the authentication handler could create and inject a JWT into the HTTP request to those services without otherwise changing the model.
 
 The primary driver for using opaque tokens rather than JWTs is length, which in turn is driven by the requirement to support HTTP Basic authentication.
-If all uses of HTTP Basic authentication can be shifted to token authentication and that requirement dropped, the decision to use opaque tokens rather than JWTs should be revisited.
+If all uses of HTTP Basic authentication can be shifted to token authentication and that requirement dropped, the decision to use opaque tokens rather than JWTs should be revisited (but revocation would need to be addressed).
 
 .. _discuss-browser-auth:
 
@@ -313,19 +314,23 @@ Advantages to keeping authorization information out of credentials:
 - Tokens are smaller (although still not small enough to use with HTTP Basic authentication).
 
 For the Rubin Science Platform, it is important to be able to change authorization information (particularly group information) without asking people to log out, log in again, and replace their tokens.
-There will likely be significant use of ad hoc groups and interactive correction of group membership and want to make that as smooth as possible.
+There will likely be significant use of ad hoc groups and interactive correction of group membership, which should be as smooth for the user as possible.
 The requirements also call for non-expiring API tokens, and requiring them to be reissued when group membership changes would be disruptive.
 
 This design therefore uses authentication-only credentials.
-For external APIs and for web browsers, the credential is an opaque token that maps to an underlying session, which can be independently invalidated if needed for security reasons.
+This would continue to be the case even if the opaque tokens were replaced with JWTs.
+
+The credential is an opaque token that maps to an underlying session, which can be independently invalidated if needed for security reasons.
 Group information will be dynamically queried on request.
+Individual tokens may carry all the groups and permissions of the user, or may be limited to a subset via that session information.
+
 Authorization and group information will likely to be cached for scaling reasons, so changes will not be immediate.
 Cache lifetime and thus delay before an authorization update takes effect is a trade-off that will be set dynamically based on experience, but something on the order of ten minutes seems likely.
 
 This approach will result in more traffic to the authentication and authorization services.
 Given the expected volume of HTTP requests to the Rubin Science Platform, the required level of scaling should be easy to meet with a combination of caching and horizontal scaling of those services.
 
-Group membership and GIDs for file system access from the notebook aspect will likely need to be set on launch of the notebook container, so as a special exception to the ability to dynamically update groups, notebook aspect containers will probably need to be relaunched to pick up group changes for file system access.
+Group membership and GIDs for file system access from the notebook aspect will likely need to be set on launch of the notebook container to work correctly with NFS, so as a special exception to the ability to dynamically update groups, notebook aspect containers will probably need to be relaunched to pick up group changes for file system access.
 
 .. _discuss-file-storage:
 
@@ -389,5 +394,6 @@ Open questions
 References
 ==========
 
+- `Basic HTTP Authentication Scheme <https://tools.ietf.org/html/rfc7617>`__
 - `JSON Web Token (JWT) <https://tools.ietf.org/html/rfc7519>`__
 - `OAuth 2.0: Bearer Token Usage <https://tools.ietf.org/html/rfc6750>`__
