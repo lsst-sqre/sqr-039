@@ -11,10 +11,23 @@
 Abstract
 ========
 
-This technote summarizes the authentication and authorization needs for the Rubin Science Platform, discusses trade-offs between possible implementation strategies, and proposes a design based on identity-only JWTs and a separate authorization and user metadata service.
+This technote re-assesses the authentication and authorization needs for the Rubin Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on identity-only JWTs and a separate authorization and user metadata service.
 
 This is neither a complete risk assessment nor a detailed technical specification.
 Those topics will be covered in subsequent documents.
+
+.. _motivation:
+
+Motivation
+==========
+
+At the time of writing (mid-2020), we are operating a functional (but not feature-complete) Science Platform service in the Data Facility at NCSA for internal project use and in support of early community engagement activities (eg. Stack Club) which includes a functional Authentication and Authorisation (A&A) service designed by the Data Management Architecture team to layer on top of services, security models, system capabilities and infrastructure constraints provided by NCSA. 
+We are motivated to re-visit some aspects of the design and implementation of our A&A strategy in the light of the following developments:
+
+- Early operational experience has highlighted some engineering and usability pain points with the current approach that are ripe for optimization (eg issues arising from the length of our JWT tokens);
+- Some existing decisions were driven by pragmatic requirements to integrate with existing NCSA services (eg. the University of Illinois LDAP service) and other infrastructure constraints (eg for Science Platform accounts to also be NCSA accounts in order to intergrate with Storage services), whereas we are now more driven by the need for the Science Platform deployment to be well separated from the specifics of the underlying infrastructure in order to support a smooth transition to a different Data Facility provider (possibly via an interim Data Facility for Early Operations);
+- We have had an emerging requirement to provide additional (albeit partial) Science Platform production deployments, (eg. at the Summit facility) that need to integrate with different infrastructure and have additional connectivity constraints (such as being able to use the system during an interruption of the external network, or to provide authentication for the Engineering Facilities Database APIs); 
+- The addition of a Security Architect to the SQuaRE Team and its Ops-Era counterpart have afforded us the opportunity to consider some options that previously would have been ruled out by lack of suitable engineering effort to design and implement them. 
 
 .. _problem:
 
@@ -32,7 +45,7 @@ The following authentication use cases must be supported:
 - Authentication of API calls from programs running on the user's local system to services provided by the Rubin Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
 - Authentication of API calls from the notebook aspect to other services within the Rubin Science Platform.
-- Authentication of some mechanism for users to copy files from their local system into the user home directories and shared file systems used by the notebook aspect.
+- Authentication of some mechanism for users to share or copy files from their local system into the user home directories and shared file systems used by the notebook aspect.
 
 We want to enforce the following authorization boundaries:
 
@@ -52,8 +65,8 @@ Proposed design
 This is a proposed design for authentication and authorization that meets the above requirements.
 All aspects of this design are discussed in more detail in :ref:`discuss`, including alternatives and trade-offs.
 
-This is a high-level description of the design.
-Specific details (choices of encryption protocols, cookie formats, session storage schemas, and so forth) will be spelled out in subsequent documents.
+This is a high-level description of the design to inform discussion.
+Specific details (choices of encryption protocols, cookie formats, session storage schemas, and so forth) will be spelled out in subsequent documents if this proposal is adopted.
 
 As a general design point affecting every design area, TLS is required for all traffic between the user and the Rubin Science Platform.
 Communications internal to the Rubin Science Platform need not use TLS provided that they happen only on a restricted private network specific to the Rubin Science Platform deployment.
@@ -136,7 +149,7 @@ CILogon provides:
 
 - Federated authentication exposed via OpenID Connect
 
-The Rubin Data Facility provides:
+The Rubin Data Facility (including additional and/or interim Data Facilities) provide:
 
 - The Kubernetes platform on which the Rubin Science Platform runs
 - Load balancing and IP allocation for web and API endpoints
@@ -145,7 +158,7 @@ The Rubin Data Facility provides:
 - Persistant backing storage for authentication and authorization data stores, with backups
 - NFS for file system storage, with backups
 
-Rubin Observatory Science Quality and Reliability Engineering provides:
+Rubin Observatory Science Quality and Reliability Engineering and its Ops-Era Successor provides:
 
 - Kubernetes ingress
 - TLS certificates for public-facing web services
@@ -332,7 +345,7 @@ Unfortunately, there are several obstacles:
 - AFS-based file systems generally assume Kerberos-based authentication mechanisms, which would require adding the complexity of Kerberos authentication to the notebook aspect and possibly to user systems.
   (It may be possible to avoid this via AuriStor, which supports a much wider range of authentication options.)
 
-While having native file system support on the user's system would be extremely powerful, and AuriStor has some interesting capabilities such as using Ceph as its backing store, supporting a custom file system client on the user's system is probably not viable.
+While having native file system support on the user's system would be extremely powerful, and AuriStor has some interesting capabilities such as using Ceph as its backing store, supporting a custom file system client on the user's system is probably not sufficiently user-friendly as a default option.
 
 None of the other options seem sufficiently compelling over the availability and well-understood features of NFSv3.
 
@@ -340,7 +353,7 @@ This leaves the question of how to provide file system access from a user's loca
 Since the user population is expected to be widely distributed and Rubin Observatory will have limited ability to provide local support, there is a strong bias towards using some mechanism that is natively supported by the user's operating system.
 Unfortunately, this limits the available solutions to nearly the empty set.
 WebDAV has native integration with macOS and integration with the Finder, and uses HTTP Basic, which can support bearer tokens using the mechanism described in :ref:`api-auth`.
-It is therefore the most likely option at the moment.
+It is therefore the current design baseline.
 
 SSH could also be used, either via scp/sftp or through (at the user's choice) something more advanced such as `SSHFS <https://github.com/libfuse/sshfs>`__, which allows a remote file system to appear to be a local file system.
 It is harder to support in this authentication model and is not part of the initial proposal.
