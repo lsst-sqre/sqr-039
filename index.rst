@@ -2,10 +2,6 @@
 
 .. sectnum::
 
-.. note::
-
-   **This technote is not yet published.**
-
 .. _abstract:
 
 Abstract
