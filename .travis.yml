@@ -1,13 +1,15 @@
-sudo: false
+sudo: true
 language: python
 dist: xenial
 matrix:
   include:
     - python: '3.7'
 install:
+  - sudo apt-get install graphviz
   - pip install -r requirements.txt
   - pip install "ltd-conveyor>=0.4.2,<0.5"
 script:
+  - python _static/architecture.py
   - sphinx-build -b html -a -n -d _build/doctree . _build/html
 after_success:
   - ltd upload --travis --dir _build/html --product sqr-039
