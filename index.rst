@@ -108,6 +108,8 @@ Each deployment of the Science Platform will use separate sessions and session k
 
 For the Summit deployment, a local OpenID Connect provider will be used instead of CILogon, but the remainder of the initial authentication flow will be the same.
 
+Administrators of the Rubin Science Platform will need a separate interface to the user database to freeze or delete users and to view and fix user metadata.
+
 .. _api-auth:
 
 API authentication
