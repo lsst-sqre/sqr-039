@@ -9,7 +9,7 @@ Abstract
 
 This technote reassesses the authentication and authorization needs for the Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on opaque bearer tokens and a separate authorization and user metadata service.
 
-This is neither a complete risk assessment nor a detailed technical specification.
+This is not a risk assessment, nor is it a detailed technical specification.
 Those topics will be covered in subsequent documents.
 
 .. _motivation:
