@@ -42,6 +42,8 @@ Primary user authentication will be federated and thus delegated to the user's m
 The following authentication use cases must be supported:
 
 - Initial user authentication via federated authentication by their home institution, using a web browser.
+- New account creation must depend on the user's institutional affiliation.
+  Some users (such as non-US users) will require manual approval.
 - Initial user authentication via a local OpenID Connect service for the Summit Facility deployment.
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Science Platform.
@@ -86,10 +88,15 @@ Initial user authentication
 Initial user authentication for most deployments will be done via CILogon using a web browser.
 CILogon will be used as an OpenID Connect provider, so the output from that authentication process will be a JWT issued by CILogon and containing the user's identity information.
 
-The CILogon-provided identity will be mapped to a Science Platform user.
-Users will be able to associate multiple CILogon identities with the same Science Platform user.
+If the user has not previously been seen, they may or may not be able to automatically create a Science Platform account, depending on their institutional affiliation.
+Users affiliated with a US institution will be able to automatically create their account based on their affiliation as released by the InCommon federation via CILogon.
+Other users should be able to record enough information to allow the project to contact them (name and email, for example), and then be held for manual review and approval.
+The details of this approval flow will be fleshed out in later documents.
+
+Once the user's account has been craeted, the CILogon-provided identity will be mapped to a Science Platform account.
+Users will be able to associate multiple CILogon identities with the same Science Platform account.
 For example, a user may wish to sometimes authenticate using GitHub as an identity provider and at other times use the authentication system of their home institution.
-They will be able to map both authentication paths to the same user and thus the same access, home directory, and permissions.
+They will be able to map both authentication paths to the same account and thus the same access, home directory, and permissions.
 
 Additional metadata about the user (full name, UID, contact email address, GitHub identity if any) will be stored by the Science Platform and associated with those CILogon identities.
 The UID will be assigned internally rather than reusing a UID provided by CILogon.
@@ -209,6 +216,9 @@ Users would be able to maintain this information using an approach like the foll
 - If the user wished to add a new authentication mechanism, they would first go to an authenticated page at the Science Platform using their existing authentication method.
   Then, they would select from the available identity providers supported by CILogon.
   The Science Platform would then redirect them to CILogon with the desired provider selected, and upon return with successful authentication, link the new ``sub`` claim with their existing account.
+
+The decision of whether to automatically create a new user account or hold the account for approval will be made based on InCommon metadata (or the absence of it) provided by CILogon as part of the initial authentication.
+For users who are held for approval, there will need to be some form of delegated approval process, the details of which are left for a future document to discuss.
 
 .. _discuss-api-auth:
 
