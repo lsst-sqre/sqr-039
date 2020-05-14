@@ -126,6 +126,12 @@ Users can list their bearer tokens, create new ones, or delete them.
 User-created bearer tokens do not expire.
 Administrators can invalidate them if necessary (such as for security reasons).
 
+API tokens have scopes of access.
+When creating a new API token, the user can restrict it to a specific purpose.
+The token will then not be authorized to make calls to other services.
+Some services, such as token creation and user metadata changes, may not allow API token authentication and require authentication via a web browser.
+The available APIs, and thus the details of what scopes will be needed and how the user will chose the desired scope, are not yet finalized and will be discussed in a future document.
+
 .. _groups:
 
 Group membership
@@ -227,6 +233,9 @@ For users who are held for approval, there will need to be some form of delegate
 API authentication
 ------------------
 
+Token format
+^^^^^^^^^^^^
+
 There are four widely-deployed choices for API authentication:
 
 #. HTTP Basic with username and password
@@ -276,6 +285,23 @@ If the first point (direct use of JWTs by third-party services) becomes compelli
 
 The primary driver for using opaque tokens rather than JWTs is length, which in turn is driven by the requirement to support HTTP Basic authentication.
 If all uses of HTTP Basic authentication can be shifted to token authentication and that requirement dropped, the decision to use opaque tokens rather than JWTs should be revisited (but revocation would need to be addressed).
+
+Token scope
+^^^^^^^^^^^
+
+JWTs natively carry their scope as one of their claims.
+For opaque bearer tokens, the scope will be stored as part of the corresponding session entry.
+In either case, tokens can be restricted to specific scopes.
+
+The token used for web browser authentication and stored in the session cookie should have unlimited scope.
+The strongest authentication of the user is via the web browser, and the user should be able to take whatever actions they are allowed to do via that path.
+
+More limited scopes are therefore for user-created API tokens, and possibly for auto-created API tokens for automatic token delegation (such as for the notebook environment).
+The details of automated token delegation are intentionally left open in this design, apart from ensuring it will be possible to support them, since the requirements and use cases are not yet clear.
+
+For user-created API tokens, there will be a balance between the security benefit of more restricted-use tokens and the UI complexity of giving the user a lot of options when creating a token.
+The current design intention is to identify the use cases where a user would need a separate API token and provide a UI to create a token for that specific purpose, possibly with an advanced user escape hatch that would allow the user to make a more unrestricted choice of token scopes.
+This balance will be discussed in more detail in future documents as the requirements become clearer.
 
 .. _discuss-browser-auth:
 
