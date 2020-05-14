@@ -63,6 +63,7 @@ We want to enforce the following authorization boundaries:
 - Limit access to home directories to the user who owns the home directory and platform administrators.
 - Limit access to shared collaborative file systems to the users authorized by the owner of the space.
   This in turn implies a self-serve group system so that users can create ad hoc groups and use them to share files with specific collaborators.
+- Limit user access according to various quotas (CPU, query volume, storage capacity, etc.).
 - Users can create long-lived tokens for API access.
 
 .. _design:
@@ -150,6 +151,21 @@ All groups will be assigned a unique GID for use within shared storage, assuming
 Group membership will not be encoded in the token or the user's web session.
 Instead, all Science Platform services will have access to a web service that, given a user's identity or a scoped token, will return authorization information and group membership for that user or token.
 For services that only need simple authorization checks, this can optionally be done by the authentication handler that sits in front of the service.
+
+.. _quotas:
+
+Quotas
+------
+
+User quotas may vary based on their group memberships (which in turn will vary based on their affiliations).
+The quotas will be part of the data about a user that Rubin Science Platform services can request from the user metadata service.
+Each service is then responsible for enforcing its own quotas.
+Services will need to report on current usage and warn if the user is close to reaching their quota, but the design of that system is beyond the scope of this document.
+
+For file storage, quotas may be tied to groups (GIDs) rather than users (UIDs) for shared storage.
+In this case, the quota would be part of the metadata of the group, and queriable from the group membership web service.
+
+Quotas will require an administrative UI to edit quotas assigned to groups, grant or revoke additional user quota, configure quotas granted based on affiliation, and so forth.
 
 .. _file-storage:
 
