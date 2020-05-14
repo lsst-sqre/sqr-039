@@ -343,6 +343,11 @@ The authentication system will also need to store other information that should 
 The initial proposal is to store the token in a session cookie alongside other session information, encrypted in a key specific to that installation of the Science Platform.
 If this requires users to reauthenticate too frequently, this decision can be easily revisited.
 
+This design ties the scope of a browser session to a single domain.
+All web-accessible components of an installation of the Rubin Science Platform will need to be visible under the same domain so that they can see the browser session cookie.
+Cross-domain browser authentication would add significant complexity, so hopefully this design constraint will be workable.
+If not, the authentication system described here may also have to be an OpenID Connect provider that can serve satellite authentication systems in other domains.
+
 .. _discuss-groups:
 
 Group membership
