@@ -73,6 +73,7 @@ with Diagram(
             auth_server << webdav_ingress
             auth_server << webdav_server
             user >> webdav_ingress >> webdav_server >> filestore
+            webdav_ingress << portal
 
     idp = Server("CILogon")
 
