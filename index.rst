@@ -323,6 +323,22 @@ For user-created API tokens, there will be a balance between the security benefi
 The current design intention is to identify the use cases where a user would need a separate API token and provide a UI to create a token for that specific purpose, possibly with an advanced user escape hatch that would allow the user to make a more unrestricted choice of token scopes.
 This balance will be discussed in more detail in future documents as the requirements become clearer.
 
+Federated authentication
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The simplest design for API authentication, and indeed for the entire authentication system, is for all protected applications to run within the same Kubernetes cluster.
+Each separate Kubernetes cluster (the summit, for example) would have its own independent instantiation of this authentication system, without any cross-realm authentication.
+
+This may not be practical or desirable in practice.
+If API credentials issued from one cluster need to be usable to authenticate to services in a different cluster, and particularly if services need to accept credentials from multiple issuers, opaque tokens are no longer desirable.
+An opaque token does not contain the necessary information to tell the recipient which authentication system to use to verify it or retrieve the authentication and authorization information it represents.
+This requirement would therefore argue for the reintroduction of JWTs instead of opaque tokens, which unfortunately reintroduces the token length concern or requires the system issue multiple token types depending on the use case.
+(This would also require the user know to ask for different token types depending on the use case.)
+
+It's not yet clear whether cross-cluster federated authentication will be necessary.
+Until that's been established, it is not included as part of this design.
+However, this point will have to be revisited as the requirements become clearer.
+
 .. _discuss-browser-auth:
 
 Web browser authentication
@@ -457,6 +473,9 @@ Open questions
    Suppose, for instance, a user has access via the University of Washington, and has also configured GitHub as an authentication provider because that's more convenient for them.
    Now suppose the user's affiliation with the University of Washington ends.
    If the user continues to authenticate via GitHub, how do we know to update their access control information based on that change of affiliation?
+#. Will there be a need for cross-cluster API authentication?
+   In other words, is there a need for API credentials issued from an authentication system living in one Kubernetes cluster to be used to access services in a different Kubernetes cluster?
+#. Can all of the web-accessible components of the Rubin Science Platform be deployed under a single domain, or will there be a need for cross-domain web authentication?
 
 .. _references:
 
