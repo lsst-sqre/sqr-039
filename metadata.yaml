@@ -13,7 +13,7 @@ serial_number: "039"
 doc_id: "SQR-039"
 
 # Title of the document, without the series/serial designation
-doc_title: "Discussion of Authentication and Authorization for Rubin Science Platform"
+doc_title: "Discussion of authentication and authorization for Science Platform"
 
 # Author names, ordered as a list. Each author name should be formatted as 'First Last'
 authors:
@@ -39,13 +39,13 @@ copyright: "2020, Association of Universities for Research in Astronomy, Inc. (A
 # Description. A short, 1-2 sentence statemement used by document indices.
 description: >-
   Summarizes authentication and authorization needs and implementation
-  trade-offs for the Rubin Science Platform.  Proposes a modified design.
+  trade-offs for the Science Platform.  Proposes a modified design.
 
 # Abstract, if available
 abstract: >-
   This technote reassesses the authentication and authorization needs for
-  the Rubin Science Platform in light of early operational experience and
-  Data Facility developments, discusses trade-offs between possible
+  the Science Platform in light of early operational experience and Data
+  Facility developments, discusses trade-offs between possible
   implementation strategies, and proposes a modified design based on
   opaque bearer tokens and a separate authorization and user metadata
   service.

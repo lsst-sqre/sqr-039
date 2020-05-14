@@ -7,7 +7,7 @@
 Abstract
 ========
 
-This technote reassesses the authentication and authorization needs for the Rubin Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on opaque bearer tokens and a separate authorization and user metadata service.
+This technote reassesses the authentication and authorization needs for the Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on opaque bearer tokens and a separate authorization and user metadata service.
 
 This is neither a complete risk assessment nor a detailed technical specification.
 Those topics will be covered in subsequent documents.
@@ -35,7 +35,7 @@ We are motivated to revisit some aspects of the design and implementation of our
 Problem statement
 =================
 
-The Rubin Science Platform consists of a notebook aspect and a portal aspect accessible via a web browser, APIs accessible programmatically, and supporting services underlying those components such as user home directories and shared file system space.
+The Science Platform consists of a notebook aspect and a portal aspect accessible via a web browser, APIs accessible programmatically, and supporting services underlying those components such as user home directories and shared file system space.
 Science platform users will come from a variety of participating institutions and may be located anywhere on the Internet.
 Primary user authentication will be federated and thus delegated to the user's member institution.
 
@@ -44,9 +44,9 @@ The following authentication use cases must be supported:
 - Initial user authentication via federated authentication by their home institution, using a web browser.
 - Initial user authentication via a local OpenID Connect service for the Summit Facility deployment.
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
-- Authentication of API calls from programs running on the user's local system to services provided by the Rubin Science Platform.
+- Authentication of API calls from programs running on the user's local system to services provided by the Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
-- Authentication of API calls from the notebook aspect to other services within the Rubin Science Platform.
+- Authentication of API calls from the notebook aspect to other services within the Science Platform.
 - Authentication of some mechanism for users to share or copy files from their local system into the user home directories and shared file systems used by the notebook aspect.
 
 We want to enforce the following authorization boundaries:
@@ -75,8 +75,8 @@ All aspects of this design are discussed in more detail in :ref:`discuss`, inclu
 This is a high-level description of the design to inform discussion.
 Specific details (choices of encryption protocols, cookie formats, session storage schemas, and so forth) will be spelled out in subsequent documents if this proposal is adopted.
 
-As a general design point affecting every design area, TLS is required for all traffic between the user and the Rubin Science Platform.
-Communications internal to the Rubin Science Platform need not use TLS provided that they happen only on a restricted private network specific to the Rubin Science Platform deployment.
+As a general design point affecting every design area, TLS is required for all traffic between the user and the Science Platform.
+Communications internal to the Science Platform need not use TLS provided that they happen only on a restricted private network specific to the Science Platform deployment.
 
 .. _initial-auth:
 
@@ -86,18 +86,18 @@ Initial user authentication
 Initial user authentication for most deployments will be done via CILogon using a web browser.
 CILogon will be used as an OpenID Connect provider, so the output from that authentication process will be a JWT issued by CILogon and containing the user's identity information.
 
-The CILogon-provided identity will be mapped to a Rubin Science Platform user.
-Users will be able to associate multiple CILogon identities with the same Rubin Science Platform user.
+The CILogon-provided identity will be mapped to a Science Platform user.
+Users will be able to associate multiple CILogon identities with the same Science Platform user.
 For example, a user may wish to sometimes authenticate using GitHub as an identity provider and at other times use the authentication system of their home institution.
 They will be able to map both authentication paths to the same user and thus the same access, home directory, and permissions.
 
-Additional metadata about the user (full name, UID, contact email address, GitHub identity if any) will be stored by the Rubin Science Platform and associated with those CILogon identities.
+Additional metadata about the user (full name, UID, contact email address, GitHub identity if any) will be stored by the Science Platform and associated with those CILogon identities.
 The UID will be assigned internally rather than reusing a UID provided by CILogon.
 Other attributes may be initially seeded from CILogon information, but the user will then be able to change them as they wish.
 
-After CILogon authentication, the Rubin Science Platform will create a session for that user in Redis and set a cookie pointing to that session.
+After CILogon authentication, the Science Platform will create a session for that user in Redis and set a cookie pointing to that session.
 The cookie and session will be used for further web authentication from that browser.
-Each deployment of the Rubin Science Platform will use separate sessions and session keys, and thus require separate web browser authentication.
+Each deployment of the Science Platform will use separate sessions and session keys, and thus require separate web browser authentication.
 
 For the Summit deployment, a local OpenID Connect provider will be used instead of CILogon, but the remainder of the initial authentication flow will be the same.
 
@@ -129,7 +129,7 @@ Users can create groups and add other users to those groups as they wish.
 All groups will be assigned a unique GID for use within shared storage, assuming we use a storage backend that uses GIDs.
 
 Group membership will not be encoded in the token or the user's web session.
-Instead, all Rubin Science Platform services will have access to a web service that, given a user's identity or a scoped token, will return authorization information and group membership for that user or token.
+Instead, all Science Platform services will have access to a web service that, given a user's identity or a scoped token, will return authorization information and group membership for that user or token.
 For services that only need simple authorization checks, this can optionally be done by the authentication handler that sits in front of the service.
 
 .. _file-storage:
@@ -145,7 +145,7 @@ The backend storage will be NFS.
 To support this, the notebook aspect will, on notebook launch, retrieve the user's UID and their group memberships, including GIDs, from a metadata service and use that information to set file system permissions and POSIX credentials inside the notebook container appropriately.
 
 Users will also want to easily copy files from their local system into file storage accessible by the notebook aspect, ideally via some implicit sync or shared file system that does not require an explicit copy command.
-The exact mechanism for doing this is still to be determined, but will likely involve a server on the Rubin Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership by assuming the user's UID and GIDs.
+The exact mechanism for doing this is still to be determined, but will likely involve a server on the Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership by assuming the user's UID and GIDs.
 User authentication for remote file system operations will be via the same access token as remote API calls.
 See :ref:`api-auth`.
 
@@ -160,7 +160,7 @@ CILogon provides:
 
 The Rubin Data Facility (including additional and/or interim Data Facilities) provide:
 
-- The Kubernetes platform on which the Rubin Science Platform runs
+- The Kubernetes platform on which the Science Platform runs
 - Load balancing and IP allocation for web and API endpoints
 - PostgreSQL database for internal storage of authentication and authorization data
 - Object storage
@@ -196,7 +196,7 @@ Design discussion
 Initial authentication
 ----------------------
 
-The Rubin Science Platform must support federated user authentication via SAML and ideally should support other common authentication methods such as OAuth 2.0 (GitHub) and OpenID Connect (Google).
+The Science Platform must support federated user authentication via SAML and ideally should support other common authentication methods such as OAuth 2.0 (GitHub) and OpenID Connect (Google).
 Running a SAML Discovery Service and integrating with the various authentication federations is complex and requires significant ongoing work.
 CILogon already provides excellent integration with the necessary authentication federations, GitHub, and Google, and exposes the results via OpenID Connect.
 
@@ -204,11 +204,11 @@ The identity returned by CILogon will depend on the user's choice of authenticat
 To support the same user authenticating via multiple providers, the authentication service will need to maintain a list of IdP and identity pairs that map to the same local identity.
 Users would be able to maintain this information using an approach like the following:
 
-- On first authentication to the Rubin Science Platform, the user would choose a local username.
+- On first authentication to the Science Platform, the user would choose a local username.
   This username would be associated with the ``sub`` claim returned by CILogon.
-- If the user wished to add a new authentication mechanism, they would first go to an authenticated page at the Rubin Science Platform using their existing authentication method.
+- If the user wished to add a new authentication mechanism, they would first go to an authenticated page at the Science Platform using their existing authentication method.
   Then, they would select from the available identity providers supported by CILogon.
-  The Rubin Science Platform would then redirect them to CILogon with the desired provider selected, and upon return with successful authentication, link the new ``sub`` claim with their existing account.
+  The Science Platform would then redirect them to CILogon with the desired provider selected, and upon return with successful authentication, link the new ``sub`` claim with their existing account.
 
 .. _discuss-api-auth:
 
@@ -244,9 +244,9 @@ Opaque bearer tokens avoid this problem.
 An opaque token need only be long enough to defeat brute force searches, for which 128 bits of randomness are sufficient.
 For various implementation reasons it is often desirable to have a random token ID and a separate random secret and to add a standard prefix to all opaque tokens, but even with this taken into account, a token with a four-octet identifying prefix and two 128-bit random segments, encoded in URL-safe base64 encoding, is only 49 octets.
 
-The HTTP Basic requirement only applies to the request from the user to the authentication gateway for the Rubin Science Platform.
+The HTTP Basic requirement only applies to the request from the user to the authentication gateway for the Science Platform.
 The length constraints similarly matter primarily for the HTTP Basic requirement and for authentication from web browsers, which may have a multitude of cookies and other necessary headers.
-It would therefore be possible to use JWTs inside the Rubin Science Platform and only use opaque tokens outside.
+It would therefore be possible to use JWTs inside the Science Platform and only use opaque tokens outside.
 However, this adds complexity by creating multiple token systems.
 It would also be harder to revoke specific JWTs should that be necessary for security reasons.
 A single token mechanism based on opaque bearer tokens that map to a corresponding session stored in a persistent data store achieves the authentication goals with a minimum of complexity.
@@ -257,7 +257,7 @@ This choice forgoes the following advantages of using JWTs internally:
 #. If a user API call sets off a cascade of numerous internal API calls, avoiding the need to consult a data store to validate opaque tokens could improve performance.
    JWTs can be verified directly without needing any state other than the (relatively unchanging) public signing key.
 #. JWTs are apparently becoming the standard protocol for API web authentication.
-   Preserving a JWT component to the Rubin Science Platform will allow us to interoperate with future services, possibly outside the Rubin Science Platform, that require JWT-based authentication.
+   Preserving a JWT component to the Science Platform will allow us to interoperate with future services, possibly outside the Science Platform, that require JWT-based authentication.
    It also preserves the option to drop opaque bearer tokens entirely if the header length and HTTP Basic requirements are relaxed in the future (by, for example, no longer supporting older software with those limitations).
 
 If the first point (direct use of JWTs by third-party services) becomes compelling, the authentication handler could create and inject a JWT into the HTTP request to those services without otherwise changing the model.
@@ -272,7 +272,7 @@ Web browser authentication
 
 Web browser authentication is somewhat simpler.
 An unauthenticated web browser will be redirected for initial authentication following the OpenID Connect protocol.
-Upon return from the OpenID Connect provider (CILogon), the user's identity is mapped to a local identity for the Rubin Science Platform and a new session and corresponding opaque bearer token created for that identity.
+Upon return from the OpenID Connect provider (CILogon), the user's identity is mapped to a local identity for the Science Platform and a new session and corresponding opaque bearer token created for that identity.
 
 Rather than returning that bearer token to the user as in the API example, the bearer token will instead be stored in a cookie.
 Unlike with API tokens, these tokens should have an expiration set, and the user redirected to reauthenticate when the token expires.
@@ -282,7 +282,7 @@ Session cookies are slightly more secure because they are not persisted to disk 
 They have the drawback of therefore sometimes requiring more frequent reauthentication.
 The authentication system will also need to store other information that should be transient and thus in a session cookie, such as CSRF tokens, and it's convenient to use the same cookie storage protocol for the token.
 
-The initial proposal is to store the token in a session cookie alongside other session information, encrypted in a key specific to that installation of the Rubin Science Platform.
+The initial proposal is to store the token in a session cookie alongside other session information, encrypted in a key specific to that installation of the Science Platform.
 If this requires users to reauthenticate too frequently, this decision can be easily revisited.
 
 .. _discuss-groups:
@@ -313,7 +313,7 @@ Advantages to keeping authorization information out of credentials:
 - Authorization decisions can use data that is too complex to easily serialize into the authentication credentials.
 - Tokens are smaller (although still not small enough to use with HTTP Basic authentication).
 
-For the Rubin Science Platform, it is important to be able to change authorization information (particularly group information) without asking people to log out, log in again, and replace their tokens.
+For the Science Platform, it is important to be able to change authorization information (particularly group information) without asking people to log out, log in again, and replace their tokens.
 There will likely be significant use of ad hoc groups and interactive correction of group membership, which should be as smooth for the user as possible.
 The requirements also call for non-expiring API tokens, and requiring them to be reissued when group membership changes would be disruptive.
 
@@ -328,7 +328,7 @@ Authorization and group information will likely to be cached for scaling reasons
 Cache lifetime and thus delay before an authorization update takes effect is a trade-off that will be set dynamically based on experience, but something on the order of ten minutes seems likely.
 
 This approach will result in more traffic to the authentication and authorization services.
-Given the expected volume of HTTP requests to the Rubin Science Platform, the required level of scaling should be easy to meet with a combination of caching and horizontal scaling of those services.
+Given the expected volume of HTTP requests to the Science Platform, the required level of scaling should be easy to meet with a combination of caching and horizontal scaling of those services.
 
 Group membership and GIDs for file system access from the notebook aspect will likely need to be set on launch of the notebook container to work correctly with NFS, so as a special exception to the ability to dynamically update groups, notebook aspect containers will probably need to be relaunched to pick up group changes for file system access.
 
@@ -352,7 +352,7 @@ For example, Google Filestore (useful for prototyping and test installations) su
 Other possible file systems (such as cluster file systems like GPFS or Lustre) are generally not available as standard services in cloud environments, which are used for prototyping and testing and which ideally should match the Data Facility environment.
 
 AFS and related technologies such as AuriStor deserve some separate discussion.
-AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect and internal Rubin Science Platform services.
+AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect and internal Science Platform services.
 This neatly solves the problem of synchronizing files from a user's machine to their running notebook or their collaborators, which would be a significant benefit.
 Unfortunately, there are several obstacles:
 
@@ -382,8 +382,8 @@ However, it could be supported by, most likely, adding a way for a user to regis
 Open questions
 ==============
 
-#. Will the Rubin Science Platform need to provide shared relational database storage to users with authorization rules that they can control (for example, allowing specific collaborators to access some of their tables)?
-#. Will the Rubin Science Platform need to provide an object store to users with authorization rules that they can control (for example, allowing access to their objects to specific collaborators).
+#. Will the Science Platform need to provide shared relational database storage to users with authorization rules that they can control (for example, allowing specific collaborators to access some of their tables)?
+#. Will the Science Platform need to provide an object store to users with authorization rules that they can control (for example, allowing access to their objects to specific collaborators).
 #. How do we handle changes in institutional affiliation?
    Suppose, for instance, a user has access via the University of Washington, and has also configured GitHub as an authentication provider because that's more convenient for them.
    Now suppose the user's affiliation with the University of Washington ends.

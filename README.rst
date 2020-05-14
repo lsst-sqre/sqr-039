@@ -7,14 +7,14 @@
   .. image:: https://zenodo.org/badge/doi/10.5281/zenodo.#####.svg
      :target: http://dx.doi.org/10.5281/zenodo.#####
 
-###########################################################
-Authentication and Authorization for Rubin Science Platform
-###########################################################
+###################################################################
+Discussion of authentication and authorization for Science Platform
+###################################################################
 
 SQR-039
 =======
 
-This note summarizes the authentication and authorization needs for the Rubin Science Platform, discusses trade-offs between possible implementation strategies, and proposes a design.
+This note summarizes the authentication and authorization needs for the Science Platform, discusses trade-offs between possible implementation strategies, and proposes a design.
 
 **Links:**
 
