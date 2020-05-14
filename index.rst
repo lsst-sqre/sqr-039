@@ -48,8 +48,12 @@ The following authentication use cases must be supported:
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
+- Authentication and authorization to underlying POSIX file systems (both individual and shared) from the notebook and portal aspects.
+  The current project design uses WebDAV as the access mechanism from the portal aspect.
 - Authentication of API calls from the notebook aspect to other services within the Science Platform.
-- Authentication of some mechanism for users to share or copy files from their local system into the user home directories and shared file systems used by the notebook aspect.
+- Authentication of API calls from the portal aspect to other services within the Science Platform.
+- Authentication of some mechanism for users to share, copy, and programmatically access files from their local system into the user home directories and shared file systems used by the notebook and portal aspects.
+  The current project design requirements call for WebDAV to be this mechanism.
 
 We want to enforce the following authorization boundaries:
 
@@ -108,7 +112,7 @@ Each deployment of the Science Platform will use separate sessions and session k
 
 For the Summit deployment, a local OpenID Connect provider will be used instead of CILogon, but the remainder of the initial authentication flow will be the same.
 
-Administrators of the Rubin Science Platform will need a separate interface to the user database to freeze or delete users and to view and fix user metadata.
+Administrators of the Science Platform will need a separate interface to the user database to freeze or delete users and to view and fix user metadata.
 
 .. _api-auth:
 
@@ -375,6 +379,9 @@ Group membership and GIDs for file system access from the notebook aspect will l
 File storage
 ------------
 
+Storage backends
+^^^^^^^^^^^^^^^^
+
 None of the options for POSIX file storage are very appealing.
 It would be tempting to make do with only an object store, but the UI for astronomers would be poor and it wouldn't support the expected environment for the notebook aspect.
 Simulating a POSIX file system on top of an object store is technically possible, but those types of translation layers tend to be rife with edge-case bugs.
@@ -390,8 +397,8 @@ For example, Google Filestore (useful for prototyping and test installations) su
 Other possible file systems (such as cluster file systems like GPFS or Lustre) are generally not available as standard services in cloud environments, which are used for prototyping and testing and which ideally should match the Data Facility environment.
 
 AFS and related technologies such as AuriStor deserve some separate discussion.
-AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect and internal Science Platform services.
-This neatly solves the problem of synchronizing files from a user's machine to their running notebook or their collaborators, which would be a significant benefit.
+AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect, portal aspect, and internal Science Platform services.
+This neatly solves the problem of synchronizing files from a user's machine to their running notebook, the portal, and their collaborators, which would be a significant benefit.
 Unfortunately, there are several obstacles:
 
 - The user would need to run a client (including a kernel module).
@@ -404,6 +411,9 @@ Unfortunately, there are several obstacles:
 While having native file system support on the user's system would be extremely powerful, and AuriStor has some interesting capabilities such as using Ceph as its backing store, supporting a custom file system client on the user's system is probably not sufficiently user-friendly as a default option.
 
 None of the other options seem sufficiently compelling over the availability and well-understood features of NFSv3.
+
+Remote access to storage
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 This leaves the question of how to provide file system access from a user's local device.
 Since the user population is expected to be widely distributed and Rubin Observatory will have limited ability to provide local support, there is a strong bias towards using some mechanism that is natively supported by the user's operating system.
