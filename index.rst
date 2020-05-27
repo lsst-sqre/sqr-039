@@ -9,7 +9,7 @@ Abstract
 
 This technote reassesses the authentication and authorization needs for the Science Platform in light of early operational experience and Data Facility developments, discusses trade-offs between possible implementation strategies, and proposes a modified design based on opaque bearer tokens and a separate authorization and user metadata service.
 
-This is neither a complete risk assessment nor a detailed technical specification.
+This is not a risk assessment, nor is it a detailed technical specification.
 Those topics will be covered in subsequent documents.
 
 .. _motivation:
@@ -42,12 +42,18 @@ Primary user authentication will be federated and thus delegated to the user's m
 The following authentication use cases must be supported:
 
 - Initial user authentication via federated authentication by their home institution, using a web browser.
+- New account creation must depend on the user's institutional affiliation.
+  Some users (such as non-US users) will require manual approval.
 - Initial user authentication via a local OpenID Connect service for the Summit Facility deployment.
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
+- Authentication and authorization to underlying POSIX file systems (both individual and shared) from the notebook and portal aspects.
+  The current project design uses WebDAV as the access mechanism from the portal aspect.
 - Authentication of API calls from the notebook aspect to other services within the Science Platform.
-- Authentication of some mechanism for users to share or copy files from their local system into the user home directories and shared file systems used by the notebook aspect.
+- Authentication of API calls from the portal aspect to other services within the Science Platform.
+- Authentication of some mechanism for users to share, copy, and programmatically access files from their local system into the user home directories and shared file systems used by the notebook and portal aspects.
+  The current project design requirements call for WebDAV to be this mechanism.
 
 We want to enforce the following authorization boundaries:
 
@@ -57,6 +63,7 @@ We want to enforce the following authorization boundaries:
 - Limit access to home directories to the user who owns the home directory and platform administrators.
 - Limit access to shared collaborative file systems to the users authorized by the owner of the space.
   This in turn implies a self-serve group system so that users can create ad hoc groups and use them to share files with specific collaborators.
+- Limit user access according to various quotas (CPU, query volume, storage capacity, etc.).
 - Users can create long-lived tokens for API access.
 
 .. _design:
@@ -86,10 +93,15 @@ Initial user authentication
 Initial user authentication for most deployments will be done via CILogon using a web browser.
 CILogon will be used as an OpenID Connect provider, so the output from that authentication process will be a JWT issued by CILogon and containing the user's identity information.
 
-The CILogon-provided identity will be mapped to a Science Platform user.
-Users will be able to associate multiple CILogon identities with the same Science Platform user.
+If the user has not previously been seen, they may or may not be able to automatically create a Science Platform account, depending on their institutional affiliation.
+Users affiliated with a US institution will be able to automatically create their account based on their affiliation as released by the InCommon federation via CILogon.
+Other users should be able to record enough information to allow the project to contact them (name and email, for example), and then be held for manual review and approval.
+The details of this approval flow will be fleshed out in later documents.
+
+Once the user's account has been craeted, the CILogon-provided identity will be mapped to a Science Platform account.
+Users will be able to associate multiple CILogon identities with the same Science Platform account.
 For example, a user may wish to sometimes authenticate using GitHub as an identity provider and at other times use the authentication system of their home institution.
-They will be able to map both authentication paths to the same user and thus the same access, home directory, and permissions.
+They will be able to map both authentication paths to the same account and thus the same access, home directory, and permissions.
 
 Additional metadata about the user (full name, UID, contact email address, GitHub identity if any) will be stored by the Science Platform and associated with those CILogon identities.
 The UID will be assigned internally rather than reusing a UID provided by CILogon.
@@ -100,6 +112,8 @@ The cookie and session will be used for further web authentication from that bro
 Each deployment of the Science Platform will use separate sessions and session keys, and thus require separate web browser authentication.
 
 For the Summit deployment, a local OpenID Connect provider will be used instead of CILogon, but the remainder of the initial authentication flow will be the same.
+
+Administrators of the Science Platform will need a separate interface to the user database to freeze or delete users and to view and fix user metadata.
 
 .. _api-auth:
 
@@ -117,6 +131,12 @@ Users can list their bearer tokens, create new ones, or delete them.
 User-created bearer tokens do not expire.
 Administrators can invalidate them if necessary (such as for security reasons).
 
+API tokens have scopes of access.
+When creating a new API token, the user can restrict it to a specific purpose.
+The token will then not be authorized to make calls to other services.
+Some services, such as token creation and user metadata changes, may not allow API token authentication and require authentication via a web browser.
+The available APIs, and thus the details of what scopes will be needed and how the user will chose the desired scope, are not yet finalized and will be discussed in a future document.
+
 .. _groups:
 
 Group membership
@@ -131,6 +151,21 @@ All groups will be assigned a unique GID for use within shared storage, assuming
 Group membership will not be encoded in the token or the user's web session.
 Instead, all Science Platform services will have access to a web service that, given a user's identity or a scoped token, will return authorization information and group membership for that user or token.
 For services that only need simple authorization checks, this can optionally be done by the authentication handler that sits in front of the service.
+
+.. _quotas:
+
+Quotas
+------
+
+User quotas may vary based on their group memberships (which in turn will vary based on their affiliations).
+The quotas will be part of the data about a user that Rubin Science Platform services can request from the user metadata service.
+Each service is then responsible for enforcing its own quotas.
+Services will need to report on current usage and warn if the user is close to reaching their quota, but the design of that system is beyond the scope of this document.
+
+For file storage, quotas may be tied to groups (GIDs) rather than users (UIDs) for shared storage.
+In this case, the quota would be part of the metadata of the group, and queriable from the group membership web service.
+
+Quotas will require an administrative UI to edit quotas assigned to groups, grant or revoke additional user quota, configure quotas granted based on affiliation, and so forth.
 
 .. _file-storage:
 
@@ -210,10 +245,16 @@ Users would be able to maintain this information using an approach like the foll
   Then, they would select from the available identity providers supported by CILogon.
   The Science Platform would then redirect them to CILogon with the desired provider selected, and upon return with successful authentication, link the new ``sub`` claim with their existing account.
 
+The decision of whether to automatically create a new user account or hold the account for approval will be made based on InCommon metadata (or the absence of it) provided by CILogon as part of the initial authentication.
+For users who are held for approval, there will need to be some form of delegated approval process, the details of which are left for a future document to discuss.
+
 .. _discuss-api-auth:
 
 API authentication
 ------------------
+
+Token format
+^^^^^^^^^^^^
 
 There are four widely-deployed choices for API authentication:
 
@@ -265,6 +306,39 @@ If the first point (direct use of JWTs by third-party services) becomes compelli
 The primary driver for using opaque tokens rather than JWTs is length, which in turn is driven by the requirement to support HTTP Basic authentication.
 If all uses of HTTP Basic authentication can be shifted to token authentication and that requirement dropped, the decision to use opaque tokens rather than JWTs should be revisited (but revocation would need to be addressed).
 
+Token scope
+^^^^^^^^^^^
+
+JWTs natively carry their scope as one of their claims.
+For opaque bearer tokens, the scope will be stored as part of the corresponding session entry.
+In either case, tokens can be restricted to specific scopes.
+
+The token used for web browser authentication and stored in the session cookie should have unlimited scope.
+The strongest authentication of the user is via the web browser, and the user should be able to take whatever actions they are allowed to do via that path.
+
+More limited scopes are therefore for user-created API tokens, and possibly for auto-created API tokens for automatic token delegation (such as for the notebook environment).
+The details of automated token delegation are intentionally left open in this design, apart from ensuring it will be possible to support them, since the requirements and use cases are not yet clear.
+
+For user-created API tokens, there will be a balance between the security benefit of more restricted-use tokens and the UI complexity of giving the user a lot of options when creating a token.
+The current design intention is to identify the use cases where a user would need a separate API token and provide a UI to create a token for that specific purpose, possibly with an advanced user escape hatch that would allow the user to make a more unrestricted choice of token scopes.
+This balance will be discussed in more detail in future documents as the requirements become clearer.
+
+Federated authentication
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The simplest design for API authentication, and indeed for the entire authentication system, is for all protected applications to run within the same Kubernetes cluster.
+Each separate Kubernetes cluster (the summit, for example) would have its own independent instantiation of this authentication system, without any cross-realm authentication.
+
+This may not be practical or desirable in practice.
+If API credentials issued from one cluster need to be usable to authenticate to services in a different cluster, and particularly if services need to accept credentials from multiple issuers, opaque tokens are no longer desirable.
+An opaque token does not contain the necessary information to tell the recipient which authentication system to use to verify it or retrieve the authentication and authorization information it represents.
+This requirement would therefore argue for the reintroduction of JWTs instead of opaque tokens, which unfortunately reintroduces the token length concern or requires the system issue multiple token types depending on the use case.
+(This would also require the user know to ask for different token types depending on the use case.)
+
+It's not yet clear whether cross-cluster federated authentication will be necessary.
+Until that's been established, it is not included as part of this design.
+However, this point will have to be revisited as the requirements become clearer.
+
 .. _discuss-browser-auth:
 
 Web browser authentication
@@ -284,6 +358,11 @@ The authentication system will also need to store other information that should 
 
 The initial proposal is to store the token in a session cookie alongside other session information, encrypted in a key specific to that installation of the Science Platform.
 If this requires users to reauthenticate too frequently, this decision can be easily revisited.
+
+This design ties the scope of a browser session to a single domain.
+All web-accessible components of an installation of the Rubin Science Platform will need to be visible under the same domain so that they can see the browser session cookie.
+Cross-domain browser authentication would add significant complexity, so hopefully this design constraint will be workable.
+If not, the authentication system described here may also have to be an OpenID Connect provider that can serve satellite authentication systems in other domains.
 
 .. _discuss-groups:
 
@@ -337,6 +416,9 @@ Group membership and GIDs for file system access from the notebook aspect will l
 File storage
 ------------
 
+Storage backends
+^^^^^^^^^^^^^^^^
+
 None of the options for POSIX file storage are very appealing.
 It would be tempting to make do with only an object store, but the UI for astronomers would be poor and it wouldn't support the expected environment for the notebook aspect.
 Simulating a POSIX file system on top of an object store is technically possible, but those types of translation layers tend to be rife with edge-case bugs.
@@ -352,8 +434,8 @@ For example, Google Filestore (useful for prototyping and test installations) su
 Other possible file systems (such as cluster file systems like GPFS or Lustre) are generally not available as standard services in cloud environments, which are used for prototyping and testing and which ideally should match the Data Facility environment.
 
 AFS and related technologies such as AuriStor deserve some separate discussion.
-AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect and internal Science Platform services.
-This neatly solves the problem of synchronizing files from a user's machine to their running notebook or their collaborators, which would be a significant benefit.
+AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect, portal aspect, and internal Science Platform services.
+This neatly solves the problem of synchronizing files from a user's machine to their running notebook, the portal, and their collaborators, which would be a significant benefit.
 Unfortunately, there are several obstacles:
 
 - The user would need to run a client (including a kernel module).
@@ -366,6 +448,9 @@ Unfortunately, there are several obstacles:
 While having native file system support on the user's system would be extremely powerful, and AuriStor has some interesting capabilities such as using Ceph as its backing store, supporting a custom file system client on the user's system is probably not sufficiently user-friendly as a default option.
 
 None of the other options seem sufficiently compelling over the availability and well-understood features of NFSv3.
+
+Remote access to storage
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 This leaves the question of how to provide file system access from a user's local device.
 Since the user population is expected to be widely distributed and Rubin Observatory will have limited ability to provide local support, there is a strong bias towards using some mechanism that is natively supported by the user's operating system.
@@ -388,6 +473,9 @@ Open questions
    Suppose, for instance, a user has access via the University of Washington, and has also configured GitHub as an authentication provider because that's more convenient for them.
    Now suppose the user's affiliation with the University of Washington ends.
    If the user continues to authenticate via GitHub, how do we know to update their access control information based on that change of affiliation?
+#. Will there be a need for cross-cluster API authentication?
+   In other words, is there a need for API credentials issued from an authentication system living in one Kubernetes cluster to be used to access services in a different Kubernetes cluster?
+#. Can all of the web-accessible components of the Rubin Science Platform be deployed under a single domain, or will there be a need for cross-domain web authentication?
 
 .. _references:
 
