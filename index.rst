@@ -55,6 +55,10 @@ The following authentication use cases must be supported:
 - Authentication of some mechanism for users to share, copy, and programmatically access files from their local system into the user home directories and shared file systems used by the notebook and portal aspects.
   The current project design requirements call for WebDAV to be this mechanism.
 
+API services within the Science Platform will generally be `IVOA Virtual Observatory`_ services, but there may be others that go beyond the VO standards.
+
+.. _IVOA Virtual Observatory: http://www.ivoa.net/
+
 We want to enforce the following authorization boundaries:
 
 - Limit access to the web interface (the notebook and portal aspects) to authorized project users.
