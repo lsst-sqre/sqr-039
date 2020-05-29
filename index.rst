@@ -48,10 +48,11 @@ The following authentication use cases must be supported:
 - Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
-- Authentication and authorization to underlying POSIX file systems (both individual and shared) from the notebook and portal aspects.
-  The current project design uses WebDAV as the access mechanism from the portal aspect.
 - Authentication of API calls from the notebook aspect to other services within the Science Platform.
 - Authentication of API calls from the portal aspect to other services within the Science Platform.
+- Authentication and access control for sharing data files with user-defined groups of collaborators.
+  The shared files must be accessible from the local system, the Notebook Aspect, and the Portal Aspect of any collaborator.
+  The current project design uses a POSIX file system with a WebDAV access layer on top, relying on WebDAV as the access mechanism from the user's local system and the Portal Aspect.
 - Authentication of some mechanism for users to share, copy, and programmatically access files from their local system into the user home directories and shared file systems used by the notebook and portal aspects.
   The current project design requirements call for WebDAV to be this mechanism.
 
@@ -176,16 +177,28 @@ Quotas will require an administrative UI to edit quotas assigned to groups, gran
 File storage
 ------------
 
-Users of the notebook aspect will have a personal home directory and access to shared file space.
-Users may create collaboration directories in the shared file space and limit access to groups, either platform-maintained groups or user-managed groups.
+There are three primary use cases for file storage:
+
+#. Upload and download tools, configuration, and data to a user's personal workspace, primarily for the Notebook Aspect.
+#. Share data sets between the Portal Aspect and the Notebook Aspect and download data sets to a local device.
+#. Share data sets with collaborators.
+
+The three use cases need not necessarily be satisfied by the same system, but they are in the current design.
+It is not yet clear now the `VOSpace`_ service will fit into this picture, although it will likely play a role in the third use case.
+
+.. _VOSpace: http://www.ivoa.net/documents/VOSpace/
+
+Users of the Notebook Aspect will have a personal home directory and access to shared file space.
+In the current design, to support the second use case, users will also have access to shared file space and may create collaboration directories and limit access to groups, either platform-maintained groups or user-managed groups.
 These file systems will be exposed inside the notebook aspect as POSIX directory structures using POSIX groups for access control.
 The backend storage will be NFS.
 
 To support this, the notebook aspect will, on notebook launch, retrieve the user's UID and their group memberships, including GIDs, from a metadata service and use that information to set file system permissions and POSIX credentials inside the notebook container appropriately.
 
 Users will also want to easily copy files from their local system into file storage accessible by the notebook aspect, ideally via some implicit sync or shared file system that does not require an explicit copy command.
-The exact mechanism for doing this is still to be determined, but will likely involve a server on the Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership by assuming the user's UID and GIDs.
-User authentication for remote file system operations will be via the same access token as remote API calls.
+The exact mechanism for doing this is still to be determined.
+One likely possibility is a server on the Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership by assuming the user's UID and GIDs.
+In this case, user authentication for remote file system operations will be via the same access token as remote API calls.
 See :ref:`api-auth`.
 
 .. _responsibilities:
@@ -465,6 +478,18 @@ It is therefore the current design baseline.
 SSH could also be used, either via scp/sftp or through (at the user's choice) something more advanced such as `SSHFS <https://github.com/libfuse/sshfs>`__, which allows a remote file system to appear to be a local file system.
 It is harder to support in this authentication model and is not part of the initial proposal.
 However, it could be supported by, most likely, adding a way for a user to register an SSH key to tie it to their account, and then providing an SSH server that allows sftp access to the user's file system spaces.
+
+A file sync and share solution, such as CERN's `CERNBox`_ based on `ownCloud`_ or an equivalent commercial product such as `Google Drive`_, is another option.
+A commercial product would introduce a new authentication and authorization component: user authentication to the commercial product.
+A self-hosted solution such as ownCloud would probably be able to reuse the API authentication approach.
+Either way, there would need to be an agent in the Science Platform to synchronize files from the sync and share storage into the user's home directory as visible from the Notebook Aspect.
+It would have to use whatever authentication credentials are supported by the sync and share system.
+
+.. _CERNBox: https://cernbox.web.cern.ch/
+.. _ownCloud: https://owncloud.org/
+.. _Google Drive: https://www.google.com/drive/
+
+At the moment, no firm decisions can be made about the authentication and authorization approach until a file system approach has been chosen, but any of these approaches should be supportable by this framework.
 
 .. _open-questions:
 
