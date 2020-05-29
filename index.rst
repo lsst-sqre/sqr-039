@@ -24,7 +24,7 @@ We are motivated to revisit some aspects of the design and implementation of our
 
 - Early operational experience has highlighted some engineering and usability pain points with the current approach that are ripe for optimization, such as the complexity of juggling multiple types of tokens.
 - Some existing decisions were driven by pragmatic requirements to integrate with existing NCSA services, such as the University of Illinois LDAP service, and other infrastructure constraints.
-  For example, currently Science Platform accounts must also be NCSA accounts in order to intergrate with NCSA-provided storage services.
+  For example, currently Science Platform accounts must also be NCSA accounts in order to integrate with NCSA-provided storage services.
   We are now more driven by the need for the Science Platform deployment to be well-separated from the specifics of the underlying infrastructure in order to support a smooth transition to a different Data Facility provider, possibly via an interim Data Facility for Early Operations.
 - We have had an emerging requirement to provide additional (albeit partial) Science Platform production deployments, such as at the Summit facility.
   Those deployments will need to integrate with different infrastructure and will have additional connectivity constraints, such as supporting authentication and authorization during an interruption of the external network and providing authentication for the Engineering Facilities Database APIs.
@@ -103,7 +103,7 @@ Users affiliated with a US institution will be able to automatically create thei
 Other users should be able to record enough information to allow the project to contact them (name and email, for example), and then be held for manual review and approval.
 The details of this approval flow will be fleshed out in later documents.
 
-Once the user's account has been craeted, the CILogon-provided identity will be mapped to a Science Platform account.
+Once the user's account has been created, the CILogon-provided identity will be mapped to a Science Platform account.
 Users will be able to associate multiple CILogon identities with the same Science Platform account.
 For example, a user may wish to sometimes authenticate using GitHub as an identity provider and at other times use the authentication system of their home institution.
 They will be able to map both authentication paths to the same account and thus the same access, home directory, and permissions.
@@ -216,7 +216,7 @@ The Rubin Data Facility (including additional and/or interim Data Facilities) pr
 - Load balancing and IP allocation for web and API endpoints
 - PostgreSQL database for internal storage of authentication and authorization data
 - Object storage
-- Persistant backing storage for supplemental authentication and authorization data stores (such as Redis)
+- Persistent backing storage for supplemental authentication and authorization data stores (such as Redis)
 - NFS for file system storage
 - Backup and restore facilities for all persistent data storage
 
@@ -366,7 +366,7 @@ An unauthenticated web browser will be redirected for initial authentication fol
 Upon return from the OpenID Connect provider (CILogon), the user's identity is mapped to a local identity for the Science Platform and a new session and corresponding opaque bearer token created for that identity.
 
 Rather than returning that bearer token to the user as in the API example, the bearer token will instead be stored in a cookie.
-Unlike with API tokens, these tokens should have an expiration set, and the user redirected to reauthenticate when the token expires.
+Unlike with API tokens, these tokens should have an expiration set, and the user redirected to re-authenticate when the token expires.
 
 Use of cookies prompts another choice: Should the token be stored in a session cookie or in a cookie with an expiration set to match the token?
 Session cookies are slightly more secure because they are not persisted to disk on the client and are deleted when the user closes their browser.
@@ -374,7 +374,7 @@ They have the drawback of therefore sometimes requiring more frequent reauthenti
 The authentication system will also need to store other information that should be transient and thus in a session cookie, such as CSRF tokens, and it's convenient to use the same cookie storage protocol for the token.
 
 The initial proposal is to store the token in a session cookie alongside other session information, encrypted in a key specific to that installation of the Science Platform.
-If this requires users to reauthenticate too frequently, this decision can be easily revisited.
+If this requires users to re-authenticate too frequently, this decision can be easily revisited.
 
 This design ties the scope of a browser session to a single domain.
 All web-accessible components of an installation of the Rubin Science Platform will need to be visible under the same domain so that they can see the browser session cookie.
