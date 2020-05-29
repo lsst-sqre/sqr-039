@@ -35,7 +35,7 @@ We are motivated to revisit some aspects of the design and implementation of our
 Problem statement
 =================
 
-The Science Platform consists of a notebook aspect and a portal aspect accessible via a web browser, APIs accessible programmatically, and supporting services underlying those components such as user home directories and shared file system space.
+The Science Platform consists of a Notebook Aspect and a Portal Aspect accessible via a web browser, APIs accessible programmatically, and supporting services underlying those components such as user home directories and shared file system space.
 Science platform users will come from a variety of participating institutions and may be located anywhere on the Internet.
 Primary user authentication will be federated and thus delegated to the user's member institution.
 
@@ -45,15 +45,15 @@ The following authentication use cases must be supported:
 - New account creation must depend on the user's institutional affiliation.
   Some users (such as non-US users) will require manual approval.
 - Initial user authentication via a local OpenID Connect service for the Summit Facility deployment.
-- Ongoing web browser authentication while the user interacts with the notebook or portal aspects.
+- Ongoing web browser authentication while the user interacts with the notebook or Portal Aspects.
 - Authentication of API calls from programs running on the user's local system to services provided by the Science Platform.
 - Authentication to API services from the user's local system using HTTP Basic, as a fallback for legacy software that only understands that authentication mechanism.
-- Authentication of API calls from the notebook aspect to other services within the Science Platform.
-- Authentication of API calls from the portal aspect to other services within the Science Platform.
+- Authentication of API calls from the Notebook Aspect to other services within the Science Platform.
+- Authentication of API calls from the Portal Aspect to other services within the Science Platform.
 - Authentication and access control for sharing data files with user-defined groups of collaborators.
   The shared files must be accessible from the local system, the Notebook Aspect, and the Portal Aspect of any collaborator.
   The current project design uses a POSIX file system with a WebDAV access layer on top, relying on WebDAV as the access mechanism from the user's local system and the Portal Aspect.
-- Authentication of some mechanism for users to share, copy, and programmatically access files from their local system into the user home directories and shared file systems used by the notebook and portal aspects.
+- Authentication of some mechanism for users to share, copy, and programmatically access files from their local system into the user home directories and shared file systems used by the notebook and Portal Aspects.
   The current project design requirements call for WebDAV to be this mechanism.
 
 API services within the Science Platform will generally be `IVOA Virtual Observatory`_ services, but there may be others that go beyond the VO standards.
@@ -62,7 +62,7 @@ API services within the Science Platform will generally be `IVOA Virtual Observa
 
 We want to enforce the following authorization boundaries:
 
-- Limit access to the web interface (the notebook and portal aspects) to authorized project users.
+- Limit access to the web interface (the notebook and Portal Aspects) to authorized project users.
 - Limit access to some classes of data to only users authorized to access that data.
 - Limit access to administrative and maintenance interfaces to project employees.
 - Limit access to home directories to the user who owns the home directory and platform administrators.
@@ -102,6 +102,9 @@ If the user has not previously been seen, they may or may not be able to automat
 Users affiliated with a US institution will be able to automatically create their account based on their affiliation as released by the InCommon federation via CILogon.
 Other users should be able to record enough information to allow the project to contact them (name and email, for example), and then be held for manual review and approval.
 The details of this approval flow will be fleshed out in later documents.
+See `LSE-279`_ for a general discussion of authentication and authorization for Rubin Observatory.
+
+.. _LSE-279: https://docushare.lsst.org/docushare/dsweb/Get/LSE-279
 
 Once the user's account has been created, the CILogon-provided identity will be mapped to a Science Platform account.
 Users will be able to associate multiple CILogon identities with the same Science Platform account.
@@ -190,12 +193,12 @@ It is not yet clear now the `VOSpace`_ service will fit into this picture, altho
 
 Users of the Notebook Aspect will have a personal home directory and access to shared file space.
 In the current design, to support the second use case, users will also have access to shared file space and may create collaboration directories and limit access to groups, either platform-maintained groups or user-managed groups.
-These file systems will be exposed inside the notebook aspect as POSIX directory structures using POSIX groups for access control.
+These file systems will be exposed inside the Notebook Aspect as POSIX directory structures using POSIX groups for access control.
 The backend storage will be NFS.
 
-To support this, the notebook aspect will, on notebook launch, retrieve the user's UID and their group memberships, including GIDs, from a metadata service and use that information to set file system permissions and POSIX credentials inside the notebook container appropriately.
+To support this, the Notebook Aspect will, on notebook launch, retrieve the user's UID and their group memberships, including GIDs, from a metadata service and use that information to set file system permissions and POSIX credentials inside the notebook container appropriately.
 
-Users will also want to easily copy files from their local system into file storage accessible by the notebook aspect, ideally via some implicit sync or shared file system that does not require an explicit copy command.
+Users will also want to easily copy files from their local system into file storage accessible by the Notebook Aspect, ideally via some implicit sync or shared file system that does not require an explicit copy command.
 The exact mechanism for doing this is still to be determined.
 One likely possibility is a server on the Science Platform side that accepts user credentials and then performs file operations with appropriate permissions as determined by the user's group membership by assuming the user's UID and GIDs.
 In this case, user authentication for remote file system operations will be via the same access token as remote API calls.
@@ -352,6 +355,8 @@ An opaque token does not contain the necessary information to tell the recipient
 This requirement would therefore argue for the reintroduction of JWTs instead of opaque tokens, which unfortunately reintroduces the token length concern or requires the system issue multiple token types depending on the use case.
 (This would also require the user know to ask for different token types depending on the use case.)
 
+Different deployments of the Science Platform are likely to have different sets of authorized users, which would have to be taken into account for cross-cluster authentication and authorization.
+
 It's not yet clear whether cross-cluster federated authentication will be necessary.
 Until that's been established, it is not included as part of this design.
 However, this point will have to be revisited as the requirements become clearer.
@@ -426,7 +431,7 @@ Cache lifetime and thus delay before an authorization update takes effect is a t
 This approach will result in more traffic to the authentication and authorization services.
 Given the expected volume of HTTP requests to the Science Platform, the required level of scaling should be easy to meet with a combination of caching and horizontal scaling of those services.
 
-Group membership and GIDs for file system access from the notebook aspect will likely need to be set on launch of the notebook container to work correctly with NFS, so as a special exception to the ability to dynamically update groups, notebook aspect containers will probably need to be relaunched to pick up group changes for file system access.
+Group membership and GIDs for file system access from the Notebook Aspect will likely need to be set on launch of the notebook container to work correctly with NFS, so as a special exception to the ability to dynamically update groups, Notebook Aspect containers will probably need to be relaunched to pick up group changes for file system access.
 
 .. _discuss-file-storage:
 
@@ -437,7 +442,7 @@ Storage backends
 ^^^^^^^^^^^^^^^^
 
 None of the options for POSIX file storage are very appealing.
-It would be tempting to make do with only an object store, but the UI for astronomers would be poor and it wouldn't support the expected environment for the notebook aspect.
+It would be tempting to make do with only an object store, but the UI for astronomers would be poor and it wouldn't support the expected environment for the Notebook Aspect.
 Simulating a POSIX file system on top of an object store is technically possible, but those types of translation layers tend to be rife with edge-case bugs.
 The simplest solution is therefore to use a native POSIX file system.
 
@@ -445,13 +450,13 @@ Of the available options, NFS is the most common and the best understood.
 Any anticipated Rubin Data Facility is likely to be able to provide NFS in some way.
 
 Unfortunately, the standard NFS authorization mechanism is UIDs and GIDs asserted by trusted clients.
-The NFS protocol supports Kerberos, but this would add a great deal of complexity to the notebook aspect and other services that need to use the file system, and server implementations are not widely available and are challenging to run.
+The NFS protocol supports Kerberos, but this would add a great deal of complexity to the Notebook Aspect and other services that need to use the file system, and server implementations are not widely available and are challenging to run.
 For example, Google Filestore (useful for prototyping and test installations) supports NFSv3, but not Kerberos.
 
 Other possible file systems (such as cluster file systems like GPFS or Lustre) are generally not available as standard services in cloud environments, which are used for prototyping and testing and which ideally should match the Data Facility environment.
 
 AFS and related technologies such as AuriStor deserve some separate discussion.
-AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the notebook aspect, portal aspect, and internal Science Platform services.
+AFS-based file systems are uniquely able to expose the same file system to the user's local machine and to the Notebook Aspect, Portal Aspect, and API services.
 This neatly solves the problem of synchronizing files from a user's machine to their running notebook, the portal, and their collaborators, which would be a significant benefit.
 Unfortunately, there are several obstacles:
 
@@ -459,7 +464,7 @@ Unfortunately, there are several obstacles:
   Those clients can lag behind operating system releases and require support to install and debug (which Rubin Observatory is not in a position to provide).
 - AFS-based file systems are similarly not available as standard services in cloud environments.
 - Running an AFS file system is a non-trivial commitment of ongoing support resources and may not be readily within the capabilities of the Rubin Data Facility.
-- AFS-based file systems generally assume Kerberos-based authentication mechanisms, which would require adding the complexity of Kerberos authentication to the notebook aspect and possibly to user systems.
+- AFS-based file systems generally assume Kerberos-based authentication mechanisms, which would require adding the complexity of Kerberos authentication to the Notebook Aspect and possibly to user systems.
   (It may be possible to avoid this via AuriStor, which supports a much wider range of authentication options.)
 
 While having native file system support on the user's system would be extremely powerful, and AuriStor has some interesting capabilities such as using Ceph as its backing store, supporting a custom file system client on the user's system is probably not sufficiently user-friendly as a default option.
@@ -480,7 +485,9 @@ It is harder to support in this authentication model and is not part of the init
 However, it could be supported by, most likely, adding a way for a user to register an SSH key to tie it to their account, and then providing an SSH server that allows sftp access to the user's file system spaces.
 
 A file sync and share solution, such as CERN's `CERNBox`_ based on `ownCloud`_ or an equivalent commercial product such as `Google Drive`_, is another option.
-A commercial product would introduce a new authentication and authorization component: user authentication to the commercial product.
+This shares with a distributed file system such as AFS the property that a user can edit files directly on their local system and see the changes reflected automatically within the Science Platform without requiring additional steps.
+
+A commercial sync and share product would introduce a new authentication and authorization component: user authentication to the commercial product.
 A self-hosted solution such as ownCloud would probably be able to reuse the API authentication approach.
 Either way, there would need to be an agent in the Science Platform to synchronize files from the sync and share storage into the user's home directory as visible from the Notebook Aspect.
 It would have to use whatever authentication credentials are supported by the sync and share system.
